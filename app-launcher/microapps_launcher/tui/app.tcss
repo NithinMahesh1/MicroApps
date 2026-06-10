@@ -1,0 +1,56 @@
+.banner {
+    color: $accent;
+    text-style: bold;
+    padding: 0 1;
+}
+
+#app-list {
+    padding: 1 2;
+}
+
+.app-row {
+    height: auto;
+    padding: 1 0;
+}
+
+.app-name {
+    width: 34;
+}
+
+.badge {
+    width: 14;
+}
+
+.app-row Button {
+    margin: 0 1;
+}
+
+#config-form {
+    padding: 1 2;
+}
+
+.config-title {
+    padding-bottom: 1;
+}
+
+.field-label {
+    text-style: bold;
+    padding-top: 1;
+}
+
+.field-help {
+    text-style: italic;
+}
+
+.list-field {
+    height: 6;
+}
+
+.errors {
+    padding: 1 0;
+}
+
+.actions {
+    height: auto;
+    padding-top: 1;
+}

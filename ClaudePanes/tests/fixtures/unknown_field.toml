@@ -1,0 +1,16 @@
+# Fixture: unknown_field
+# Tests: validator emits a warning (per config-format.md section 6: "Unknown
+#        top-level keys produce a warning, not a fatal error") when a pane
+#        has a typo'd key such as `splitt` instead of `split`
+# Expected: valid with warning; ConfigWarning mentioning unknown key `splitt`
+#           on tabs[0].panes[1]
+
+[[panes]]
+cmd = "echo a"
+title = "A"
+
+[[panes]]
+cmd = "echo b"
+splitt = "vertical"
+size = 0.5
+title = "B"

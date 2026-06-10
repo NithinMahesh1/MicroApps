@@ -1,0 +1,23 @@
+# Three parallel worktrees, one tab per worktree
+# Each Windows Terminal tab runs a Claude session against a different feature
+# branch's git worktree. Use Ctrl+Tab to flip between them while each Claude
+# chews on its own long-running task in isolation.
+# Usage: claude-panes start three-worktrees
+
+name = "three-worktrees"
+terminal = "wt"
+
+[[tabs]]
+title = "Auth refactor"
+[[tabs.panes]]
+cmd = "wsl -- bash -lc 'cd ~/work/auth-refactor && claude'"
+
+[[tabs]]
+title = "Payment bug"
+[[tabs.panes]]
+cmd = "wsl -- bash -lc 'cd ~/work/payment-bug && claude'"
+
+[[tabs]]
+title = "Migration"
+[[tabs.panes]]
+cmd = "wsl -- bash -lc 'cd ~/work/migration && claude'"

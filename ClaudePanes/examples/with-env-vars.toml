@@ -1,0 +1,39 @@
+# Environment variable expansion in working_dir
+#
+# This example demonstrates ClaudePanes' env-var expansion behavior. Per
+# docs/config-format.md §3 (and the validation rules in §6), `~` and
+# `$VAR` / `%VAR%` style environment variables are expanded ONLY in the
+# `working_dir` field (top-level and per-pane). The `cmd` string is passed
+# through to the multiplexer verbatim — env vars inside `cmd` are the
+# shell's job, not ClaudePanes'.
+#
+# Cross-platform tradeoff: this layout uses `%USERPROFILE%` because the
+# README targets Windows hosts driving WSL. On a POSIX host you would
+# write `$HOME` instead; ClaudePanes expands both styles, but a single
+# layout file has to commit to one. Use `~` if you want a value that
+# works unchanged on every platform.
+#
+# Invoke (dry run, no terminal opens):
+#   python claude_panes.py start examples/with-env-vars.toml --dry-run
+
+name = "with-env-vars"
+description = "Demonstrates env-var expansion in working_dir (Windows-style)"
+working_dir = "%USERPROFILE%\\work"
+
+[[panes]]
+cmd = "wsl -d Ubuntu-22.04 -- bash -lc 'claude'"
+title = "Claude"
+
+[[panes]]
+cmd = "wsl -d Ubuntu-22.04 -- bash -lc 'watch -n 2 git status'"
+split = "vertical"
+size = 0.35
+title = "Git watch"
+working_dir = "%USERPROFILE%\\work\\feature-x"
+
+[[panes]]
+cmd = "powershell -NoExit -Command Get-ChildItem"
+split = "horizontal"
+size = 0.4
+parent = 0
+title = "Files"

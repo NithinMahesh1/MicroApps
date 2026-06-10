@@ -1,0 +1,8 @@
+# Fixture: type_mismatch_shell
+# Tests: validator rejects a scalar `shell` where a table is required
+# Expected: invalid; ConfigError mentioning shell
+
+shell = "not-a-table"
+
+[[panes]]
+cmd = "echo a"

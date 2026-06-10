@@ -1,0 +1,17 @@
+# Fixture: with_shell_prelude
+# Tests: optional [shell] table with a prelude string that is joined to
+#        every pane's cmd with ' && ' (launcher-supplied separator)
+# Expected: valid; shell.prelude == "cd ~/work"
+
+[shell]
+prelude = "cd ~/work"
+
+[[panes]]
+cmd = "echo first"
+title = "First"
+
+[[panes]]
+cmd = "echo second"
+split = "vertical"
+size = 0.5
+title = "Second"

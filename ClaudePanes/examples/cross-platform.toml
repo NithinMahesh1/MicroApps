@@ -1,0 +1,17 @@
+# Portable Claude + git watch layout (macOS/Linux via tmux, Windows via WSL bash)
+# No `wsl` prefix, no PowerShell — just plain `bash -lc`. ClaudePanes auto-
+# detects tmux on macOS/Linux and emits the matching `split-window` calls.
+# Share this file between machines without per-host forks.
+# Usage: claude-panes start cross-platform
+
+name = "cross-platform"
+
+[[panes]]
+cmd = "bash -lc 'cd ~/work/feature-x && claude'"
+title = "Claude"
+
+[[panes]]
+cmd = "bash -lc 'cd ~/work/feature-x && watch -n 2 git status -sb'"
+split = "vertical"
+size = 0.3
+title = "git watch"

@@ -1,0 +1,29 @@
+# Fixture: multi_tab
+# Tests: top-level [[tabs]] with two tabs, each containing two [[tabs.panes]]
+# Expected: valid; loads as 2 tabs with 2 panes each
+
+[[tabs]]
+title = "Tab one"
+
+[[tabs.panes]]
+cmd = "echo tab1-left"
+title = "Left"
+
+[[tabs.panes]]
+cmd = "echo tab1-right"
+split = "vertical"
+size = 0.5
+title = "Right"
+
+[[tabs]]
+title = "Tab two"
+
+[[tabs.panes]]
+cmd = "echo tab2-left"
+title = "Left"
+
+[[tabs.panes]]
+cmd = "echo tab2-right"
+split = "vertical"
+size = 0.5
+title = "Right"

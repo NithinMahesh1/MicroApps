@@ -1,0 +1,5 @@
+# Fixture: type_mismatch_panes
+# Tests: validator rejects a scalar `panes` where an array of tables is required
+# Expected: invalid; ConfigError mentioning panes
+
+panes = "not-an-array"

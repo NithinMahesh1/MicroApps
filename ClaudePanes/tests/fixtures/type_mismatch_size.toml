@@ -1,0 +1,11 @@
+# Fixture: type_mismatch_size
+# Tests: validator rejects a non-numeric `size`
+# Expected: invalid; ConfigError mentioning size
+
+[[panes]]
+cmd = "echo a"
+
+[[panes]]
+cmd = "echo b"
+split = "vertical"
+size = "big"

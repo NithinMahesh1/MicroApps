@@ -1,0 +1,7 @@
+# Fixture: type_mismatch_working_dir
+# Tests: validator rejects a non-string pane `working_dir`
+# Expected: invalid; ConfigError mentioning working_dir
+
+[[panes]]
+cmd = "echo a"
+working_dir = 5

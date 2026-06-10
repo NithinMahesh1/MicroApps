@@ -1,0 +1,77 @@
+{
+  "$schema": "./apps.schema.json",
+  "version": "1",
+  "apps": [
+    {
+      "id": "meeting-tracker",
+      "name": "Meeting Tracker",
+      "description": "Live terminal dashboard of today's Google Calendar meetings with countdowns, alerts, one-key join, and unread Gmail.",
+      "stack": "python",
+      "icon": "📅",
+      "cwd": "MeetingTracker",
+      "prepare": {
+        "cmd": ["pip", "install", "-r", "requirements.txt"],
+        "sentinel": null
+      },
+      "launch": {
+        "cmd": ["python", "meeting_tracker.py"]
+      },
+      "launchMode": "console",
+      "stoppable": true,
+      "configFile": "config/credentials.json",
+      "configTemplate": "config/credentials.example.json",
+      "configSchema": null,
+      "prerequisites": [
+        { "type": "python", "minVersion": "3.8" }
+      ],
+      "docs": "MeetingTracker/README.md"
+    },
+    {
+      "id": "meeting-notes-overlay",
+      "name": "Meeting Notes Overlay",
+      "description": "Always-on-top WinUI 3 overlay invisible to screen capture (Teams/Slack/Zoom/Meet). Renders your .txt/.md notes.",
+      "stack": "dotnet",
+      "icon": "📝",
+      "cwd": "meeting-notes-overlay",
+      "prepare": {
+        "cmd": ["dotnet", "build", "MeetingNotesOverlay.csproj", "-c", "Release"],
+        "sentinel": "bin/Release/net10.0-windows10.0.22621.0/MeetingNotesOverlay.exe"
+      },
+      "launch": {
+        "cmd": ["bin/Release/net10.0-windows10.0.22621.0/MeetingNotesOverlay.exe"]
+      },
+      "launchMode": "gui",
+      "stoppable": true,
+      "configFile": "config/meeting-notes-overlay.json",
+      "configTemplate": "config/meeting-notes-overlay.example.json",
+      "configSchema": null,
+      "prerequisites": [
+        { "type": "dotnet-sdk", "minVersion": "10.0" },
+        { "type": "os", "name": "Windows", "minVersion": "10.0.19041" }
+      ],
+      "docs": "meeting-notes-overlay/README.md"
+    },
+    {
+      "id": "claude-panes",
+      "name": "ClaudePanes",
+      "description": "Fire-and-forget TOML-driven launcher that opens multi-pane Claude Code terminal layouts (Windows Terminal, WezTerm, tmux, Zellij).",
+      "stack": "python",
+      "icon": "🪟",
+      "cwd": "ClaudePanes",
+      "prepare": null,
+      "launch": {
+        "cmd": ["python", "claude_panes.py", "start"]
+      },
+      "launchMode": "fire-and-forget",
+      "stoppable": false,
+      "configFile": null,
+      "configTemplate": null,
+      "configSchema": null,
+      "prerequisites": [
+        { "type": "python", "minVersion": "3.11" },
+        { "type": "binary-any", "names": ["wt", "wezterm", "tmux", "zellij"] }
+      ],
+      "docs": "ClaudePanes/README.md"
+    }
+  ]
+}

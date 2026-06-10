@@ -1,0 +1,11 @@
+# Fixture: type_mismatch_parent
+# Tests: validator rejects a non-integer pane `parent`
+# Expected: invalid; ConfigError mentioning parent
+
+[[panes]]
+cmd = "echo a"
+
+[[panes]]
+cmd = "echo b"
+split = "vertical"
+parent = "zero"

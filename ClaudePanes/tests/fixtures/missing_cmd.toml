@@ -1,0 +1,6 @@
+# Fixture: missing_cmd
+# Tests: validator catches missing required `cmd` field
+# Expected: invalid; ConfigError pointing at tabs[0].panes[0].cmd
+
+[[panes]]
+title = "No command"

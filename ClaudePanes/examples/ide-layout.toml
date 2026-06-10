@@ -1,0 +1,33 @@
+# Full IDE-like layout: Claude + git + dev server + free shell
+# Four panes in one tab. Claude takes the left half. The right half is split
+# horizontally into three stacked panes: git status/log on top, npm run dev
+# in the middle, a free bash shell on the bottom for ad-hoc commands.
+# Every pane uses `parent` explicitly so the split chain is unambiguous.
+# Usage: claude-panes start ide-layout
+
+name = "ide-layout"
+
+[[panes]]
+cmd = "wsl -- bash -lc 'cd ~/work/feature-x && claude'"
+title = "Claude"
+
+[[panes]]
+cmd = "wsl -- bash -lc 'cd ~/work/feature-x && git status -sb && echo --- && git log --oneline -10'"
+split = "vertical"
+size = 0.5
+parent = 0
+title = "git"
+
+[[panes]]
+cmd = "wsl -- bash -lc 'cd ~/work/feature-x && npm run dev'"
+split = "horizontal"
+size = 0.66
+parent = 1
+title = "dev server"
+
+[[panes]]
+cmd = "wsl -- bash -lc 'cd ~/work/feature-x && exec bash'"
+split = "horizontal"
+size = 0.5
+parent = 2
+title = "shell"

@@ -1,0 +1,11 @@
+# Claude in PowerShell, no WSL
+# For pure-Windows projects (.NET services, PowerShell modules, etc.) where
+# /sandbox isn't worth the WSL hop. Uses a TOML basic string: backslashes are
+# doubled (\\) and the inner double-quotes around the path are escaped (\").
+# Usage: claude-panes start native-windows
+
+name = "native-windows"
+
+[[panes]]
+cmd = "powershell -NoLogo -NoExit -Command \"cd 'C:\\Users\\you\\source\\repos\\MyService'; claude\""
+title = "Claude"

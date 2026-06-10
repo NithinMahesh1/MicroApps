@@ -1,0 +1,13 @@
+# Runtime deps for the launcher TUI. The engine + `--check`/`--list` are
+# stdlib-only and need none of these.
+#
+# Versions below were audited with `pip-audit` (2026-06-08) — full dependency
+# closure reported NO known vulnerabilities. Pinned for reproducibility; after
+# bumping, re-run:  python -m pip_audit -r requirements.txt
+textual==8.2.7
+rich==14.3.3
+pyfiglet==1.0.4
+
+# Optional: stricter apps.json validation (manifest.py falls back to a built-in
+# checker if this is absent).
+jsonschema==4.26.0

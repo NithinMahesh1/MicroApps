@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://microapps/apps.schema.json",
+  "title": "MicroApps Launcher Registry",
+  "description": "Registry of micro-applications managed by the MicroApps Launcher. All path fields use forward slashes and are normalized per-OS at runtime.",
+  "type": "object",
+  "required": ["version", "apps"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string", "description": "Optional path/URI to this schema for editor tooling." },
+    "version": { "const": "1", "description": "Registry format version. Must be the string '1'." },
+    "apps": {
+      "type": "array",
+      "description": "Registered micro-applications. At least one entry.",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/app" }
+    }
+  },
+  "$defs": {
+    "app": {
+      "type": "object",
+      "description": "A single micro-application entry.",
+      "required": ["id", "name", "description", "stack", "cwd", "launch", "launchMode", "stoppable", "prerequisites"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique kebab-case identifier.",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "name": { "type": "string", "minLength": 1, "description": "Display name." },
+        "description": { "type": "string", "minLength": 1, "description": "One-line description shown in the launcher." },
+        "stack": {
+          "type": "string",
+          "enum": ["python", "dotnet", "node", "binary"],
+          "description": "Cosmetic technology tag (does not affect launching)."
+        },
+        "icon": { "type": "string", "minLength": 1, "description": "Emoji or repo-root-relative image path." },
+        "cwd": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Working directory, relative to the repo root (forward slashes). launch.cmd[0] and prepare.sentinel resolve from here.",
+          "not": { "pattern": "^([A-Za-z]:[\\\\/]|/)" }
+        },
+        "prepare": {
+          "description": "Optional one-time build/install step. null = no prepare. Skipped when 'sentinel' file exists.",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["cmd"],
+              "additionalProperties": false,
+              "properties": {
+                "cmd": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": "string" },
+                  "description": "argv (no shell). cmd[0] resolves relative to cwd; literal 'python'/'pip' are substituted with the launcher interpreter at runtime."
+                },
+                "sentinel": {
+                  "description": "File (relative to cwd) whose existence means prepare is already done. null = always run.",
+                  "oneOf": [ { "type": "string", "minLength": 1 }, { "type": "null" } ]
+                }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "launch": {
+          "type": "object",
+          "description": "Required launch command. Spawned with cwd as working directory.",
+          "required": ["cmd"],
+          "additionalProperties": false,
+          "properties": {
+            "cmd": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" },
+              "description": "argv. cmd[0] resolves relative to cwd (or PATH); literal 'python' is substituted with the launcher interpreter (sys.executable) at runtime."
+            }
+          }
+        },
+        "launchMode": {
+          "type": "string",
+          "enum": ["gui", "console", "fire-and-forget"],
+          "description": "gui = own window; console = new interactive console (CREATE_NEW_CONSOLE); fire-and-forget = detached, not tracked."
+        },
+        "stoppable": { "type": "boolean", "description": "Whether the launcher offers a Stop action. Must be false when launchMode is fire-and-forget." },
+        "configFile": {
+          "description": "Live (git-ignored) config path, relative to repo root. null if none.",
+          "oneOf": [ { "type": "string", "minLength": 1 }, { "type": "null" } ]
+        },
+        "configTemplate": {
+          "description": "Committed *.example.json template, relative to repo root. null if none.",
+          "oneOf": [ { "type": "string", "minLength": 1 }, { "type": "null" } ]
+        },
+        "configSchema": {
+          "description": "Optional JSON Schema path for the config form, relative to repo root. null = infer from the template shape.",
+          "oneOf": [ { "type": "string", "minLength": 1 }, { "type": "null" } ]
+        },
+        "prerequisites": {
+          "type": "array",
+          "description": "Checks run before prepare/launch. Empty = none.",
+          "items": { "$ref": "#/$defs/prerequisite" }
+        },
+        "docs": { "type": "string", "minLength": 1, "description": "URL or repo-root-relative docs path." }
+      },
+      "if": { "properties": { "launchMode": { "const": "fire-and-forget" } } },
+      "then": { "properties": { "stoppable": { "const": false } } }
+    },
+    "prerequisite": {
+      "description": "A prerequisite check, discriminated by 'type'.",
+      "oneOf": [
+        {
+          "type": "object", "required": ["type", "minVersion"], "additionalProperties": false,
+          "properties": {
+            "type": { "const": "python" },
+            "minVersion": { "type": "string", "minLength": 1, "description": "Minimum Python version, e.g. '3.11'." }
+          }
+        },
+        {
+          "type": "object", "required": ["type", "minVersion"], "additionalProperties": false,
+          "properties": {
+            "type": { "const": "node" },
+            "minVersion": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object", "required": ["type", "minVersion"], "additionalProperties": false,
+          "properties": {
+            "type": { "const": "dotnet-sdk" },
+            "minVersion": { "type": "string", "minLength": 1, "description": "Minimum .NET SDK major.minor, e.g. '10.0'." }
+          }
+        },
+        {
+          "type": "object", "required": ["type", "name"], "additionalProperties": false,
+          "properties": {
+            "type": { "const": "binary" },
+            "name": { "type": "string", "minLength": 1, "description": "Binary required on PATH." }
+          }
+        },
+        {
+          "type": "object", "required": ["type", "names"], "additionalProperties": false,
+          "properties": {
+            "type": { "const": "binary-any" },
+            "names": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "description": "Passes if at least one is on PATH." }
+          }
+        },
+        {
+          "type": "object", "required": ["type", "name"], "additionalProperties": false,
+          "properties": {
+            "type": { "const": "os" },
+            "name": { "type": "string", "minLength": 1, "description": "OS name, e.g. 'Windows'." },
+            "minVersion": { "type": "string", "minLength": 1, "description": "Optional minimum OS build, e.g. '10.0.19041'." }
+          }
+        }
+      ]
+    }
+  }
+}

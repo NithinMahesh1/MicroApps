@@ -1,0 +1,22 @@
+# Fixture: three_panes_mixed
+# Tests: three panes with a vertical split then a horizontal split, using
+#        explicit parent to re-anchor the third pane against pane index 1
+# Expected: valid; pane 1 splits off pane 0 vertically, pane 2 splits off
+#           pane 1 horizontally
+
+[[panes]]
+cmd = "echo anchor"
+title = "Anchor"
+
+[[panes]]
+cmd = "echo right"
+split = "vertical"
+size = 0.4
+title = "Right"
+
+[[panes]]
+cmd = "echo bottom-right"
+split = "horizontal"
+size = 0.5
+parent = 1
+title = "Bottom right"

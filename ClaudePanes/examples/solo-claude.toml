@@ -1,0 +1,10 @@
+# Solo Claude session in WSL
+# One pane running Claude Code inside WSL2 Ubuntu, with /sandbox available.
+# Run /sandbox inside the Claude session to enable filesystem isolation.
+# Usage: claude-panes start solo-claude
+
+name = "solo-claude"
+
+[[panes]]
+cmd = "wsl -d Ubuntu-22.04 -- bash -lc 'cd ~/work && claude'"
+title = "Claude"

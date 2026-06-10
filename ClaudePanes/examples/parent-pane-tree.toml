@@ -1,0 +1,79 @@
+# Non-linear split tree exercising the [[panes]].parent field.
+#
+# Intended split tree (docs/config-format.md sec 5.3):
+#
+#   +-------------------+-------------------+
+#   |                   |     terminal      |
+#   |      editor       |    (pane 1)       |
+#   |     (pane 0)      +-------------------+
+#   |                   |       logs        |
+#   |                   |     (pane 2)      |
+#   +-------------------+-------------------+
+#   |       tests       |
+#   |     (pane 3)      |
+#   +-----------------------------------------+
+#
+# Pane 0 is the anchor (no parent allowed -- the first pane has nothing
+# to split off, see config-format.md sec 5.3 "panes.parent").
+# Pane 1 splits the editor to the right (40% width)            -> parent = 0
+# Pane 2 splits the terminal downward (30% height)             -> parent = 1
+# Pane 3 splits the editor downward (30% height)               -> parent = 0
+#
+# `parent` contract (docs/config-format.md sec 5.3):
+#   - Integer, zero-based index into the same tab's [[panes]] array.
+#   - Must reference an EARLIER index. Forward references, negative
+#     values, out-of-range values, and cross-tab references are
+#     validation errors.
+#   - The first pane (index 0) cannot have a `parent`.
+#   - Default when omitted is "the previous pane in the same tab".
+#
+# The task description used directional names ("right", "down"). The
+# schema spells these as `split = "vertical"` (left/right divider) and
+# `split = "horizontal"` (top/bottom divider) -- see config-format.md
+# sec 3 and sec 5.3. The mapping used below is:
+#   "right" -> split = "vertical"
+#   "down"  -> split = "horizontal"
+#
+# IMPLEMENTATION LIMITATION (Phase 3 fix in flight):
+#   The tmux and zellij adapters in claude_panes.py currently IGNORE
+#   the `parent` field and always split against the most recently
+#   created pane. As a result, pane 3 below (which is supposed to split
+#   off pane 0) will instead split off pane 2 until the adapter fix
+#   lands. The layout passes validation today but will not render the
+#   tree pictured above on those adapters.
+#
+#   Windows Terminal's `wt` adapter has the same flattening behavior:
+#   it issues sequential `split-pane` commands without re-targeting
+#   the parent pane, so this layout collapses to a linear chain there
+#   as well. WezTerm's adapter targets a specific pane id when it
+#   splits and is the only adapter that honors `parent` today.
+#
+# Usage: claude-panes start parent-pane-tree
+
+name = "parent-pane-tree"
+description = "Four-pane non-linear tree exercising the parent field"
+
+[[panes]]
+cmd = "claude"
+title = "editor"
+
+[[panes]]
+cmd = "wsl -- bash -lc 'exec bash'"
+split = "vertical"
+size = 0.4
+parent = 0
+title = "terminal"
+
+[[panes]]
+cmd = "wsl -- bash -lc 'tail -F /var/log/syslog'"
+split = "horizontal"
+size = 0.3
+parent = 1
+title = "logs"
+
+[[panes]]
+cmd = "wsl -- bash -lc 'npm test -- --watch'"
+split = "horizontal"
+size = 0.3
+parent = 0
+title = "tests"

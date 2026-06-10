@@ -1,0 +1,6 @@
+# Fixture: minimal
+# Tests: a one-pane config with only the required cmd field
+# Expected: valid; loads as 1 tab with 1 pane
+
+[[panes]]
+cmd = "echo hello"

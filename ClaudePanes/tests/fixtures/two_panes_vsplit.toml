@@ -1,0 +1,13 @@
+# Fixture: two_panes_vsplit
+# Tests: pane index 1 with split=vertical and size
+# Expected: valid
+
+[[panes]]
+cmd = "echo left"
+title = "Left"
+
+[[panes]]
+cmd = "echo right"
+split = "vertical"
+size = 0.4
+title = "Right"

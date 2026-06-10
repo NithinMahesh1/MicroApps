@@ -1,0 +1,8 @@
+# Fixture: type_mismatch_terminal
+# Tests: validator rejects a non-string top-level `terminal`
+# Expected: invalid; ConfigError mentioning terminal
+
+terminal = 5
+
+[[panes]]
+cmd = "echo a"

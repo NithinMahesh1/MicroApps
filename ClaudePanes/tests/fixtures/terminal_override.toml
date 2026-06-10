@@ -1,0 +1,10 @@
+# Fixture: terminal_override
+# Tests: top-level terminal field explicitly pins the adapter to wezterm
+#        instead of relying on PATH auto-detection
+# Expected: valid; parsed config exposes terminal == "wezterm"
+
+terminal = "wezterm"
+
+[[panes]]
+cmd = "echo wezterm-pane"
+title = "WezTerm"

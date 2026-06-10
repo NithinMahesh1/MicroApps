@@ -1,0 +1,7 @@
+# Everything in this folder may hold secrets or machine-specific values.
+# Strategy: ignore ALL real config, commit ONLY templates + docs.
+# Anything you drop in here is git-ignored by default — safe to paste secrets.
+*
+!.gitignore
+!README.md
+!*.example.json

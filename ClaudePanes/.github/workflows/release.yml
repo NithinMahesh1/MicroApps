@@ -1,0 +1,50 @@
+name: Release
+
+# Publish a GitHub Release whenever a semantic-version tag is pushed.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+# Least privilege: creating a release requires write access to repository
+# contents (tags/releases). Nothing else is needed.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      # Gate: do not publish a release if the stdlib test suite fails.
+      - name: Run unittest discovery
+        run: python -m unittest discover tests -v
+
+      # Stable asset name (claude_panes.py) plus a SHA-256 checksum so users and
+      # the installers can verify the download. shasum is available on the
+      # Ubuntu runner; the output uses the bare filename, not a full path.
+      - name: Generate SHA-256 checksum
+        run: shasum -a 256 claude_panes.py > claude_panes.py.sha256
+
+      # gh is preinstalled on GitHub-hosted runners and authenticates via the
+      # built-in GITHUB_TOKEN. The tag name is taken from the ref that triggered
+      # the workflow. --verify-tag ensures the release points at the pushed tag.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag \
+            claude_panes.py \
+            claude_panes.py.sha256

@@ -1,0 +1,11 @@
+# Fixture: bad_size
+# Tests: validator catches size out of [0,1] range
+# Expected: invalid; ConfigError mentioning size
+
+[[panes]]
+cmd = "echo a"
+
+[[panes]]
+cmd = "echo b"
+split = "vertical"
+size = 1.5

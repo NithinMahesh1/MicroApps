@@ -1,0 +1,17 @@
+# Claude + git watcher side-by-side
+# Left pane: Claude working on feature-x. Right pane: live `git status -sb`
+# refreshing every 2 seconds so file changes show up as Claude edits.
+# Both panes run inside WSL against the same worktree.
+# Usage: claude-panes start claude-with-git-watch
+
+name = "claude-with-git-watch"
+
+[[panes]]
+cmd = "wsl -- bash -lc 'cd ~/work/feature-x && claude'"
+title = "Claude"
+
+[[panes]]
+cmd = "wsl -- bash -lc 'cd ~/work/feature-x && watch -n 2 git status -sb'"
+split = "vertical"
+size = 0.3
+title = "git watch"

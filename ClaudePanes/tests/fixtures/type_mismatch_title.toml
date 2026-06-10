@@ -1,0 +1,7 @@
+# Fixture: type_mismatch_title
+# Tests: validator rejects a non-string pane `title`
+# Expected: invalid; ConfigError mentioning title
+
+[[panes]]
+cmd = "echo a"
+title = 5
