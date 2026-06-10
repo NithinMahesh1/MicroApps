@@ -200,29 +200,29 @@ rendering layer differs.
 - [x] meeting-notes-overlay reads `config/meeting-notes-overlay.json` (walk-up loader, env-var expansion, safe fallback)
 - [x] Secrets relocated out of `MeetingTracker/`; never committed (verified); de-personalized source/docs; purged 85MB `bin/obj`
 
-### Phase 1 — Manifest + skeleton
+### Phase 1 — Manifest + skeleton ✅
 - [x] **Confirm TUI flavor** — **Textual** chosen (rich-family; adds `textual`)
-- [ ] Add `app-launcher/requirements.txt` (`textual`, `rich`, `pyfiglet`)
-- [ ] `apps.json` (+ `apps.schema.json`) at repo root  ← *current step (10-agent verification)*
-- [ ] Launcher reads manifest, renders the app list with status badges
-- [ ] Prerequisite detection (python / dotnet-sdk net10 / wt.exe) + fix hints
+- [x] Add `app-launcher/requirements.txt` (`textual`, `rich`, `pyfiglet`; pinned + `pip-audit`-clean)
+- [x] `apps.json` (+ `apps.schema.json`) at repo root
+- [x] Launcher reads manifest, renders the app list with status badges
+- [x] Prerequisite detection (python / dotnet-sdk net10 / wt.exe) + fix hints
 
-### Phase 2 — Launch / prepare / stop
-- [ ] Spawn per `launchMode` with correct Windows flags
-- [ ] Build-once prepare with sentinel + streamed output
-- [ ] Running-state tracking; Stop (overlay graceful→kill; MeetingTracker terminate; ClaudePanes disabled)
+### Phase 2 — Launch / prepare / stop ✅
+- [x] Spawn per `launchMode` with correct Windows flags
+- [x] Build-once prepare with sentinel + streamed output
+- [x] Running-state tracking; Stop (overlay/MeetingTracker terminate→kill; ClaudePanes disabled)
 
-### Phase 3 — Config editor
-- [ ] Generic descriptor-driven form (text / secret / string-list / file-path / readonly)
-- [ ] Load-from-example fallback; save only to git-ignored real file; structure-preserving
-- [ ] MeetingTracker "Import credentials.json"; `token.json` read-only status
-- [ ] Env-var literal + expanded preview; validation rules
+### Phase 3 — Config editor (mostly done)
+- [x] Generic descriptor-driven form (text / secret / string-list) — `file-path`/`readonly` types render as text for now
+- [x] Load-from-example fallback; save only to git-ignored real file; structure-preserving
+- [ ] MeetingTracker "Import credentials.json"; `token.json` read-only status — *deferred*
+- [x] Validation rules — `expand_preview` helper exists; live env-var preview not yet wired into the form
 
-### Phase 4 — Polish
-- [ ] Status indicators, error surfacing, optional live-log panel
-- [ ] First-run OAuth "starting…" handling (ready sentinel)
-- [ ] ClaudePanes layout picker (`list --json` → launch selected)
-- [ ] Packaging + entry point (`launcher.bat` / icon); `app-launcher/README.md`; link from root README
+### Phase 4 — Polish (partial)
+- [x] Status badges + error surfacing (prepare output tail shown on failure) — live-log panel not built
+- [ ] First-run OAuth "starting…" handling (ready sentinel) — *deferred*
+- [ ] ClaudePanes layout picker — ⚠️ **needed for ClaudePanes to launch**: its `start` requires a `<layout>` and the manifest currently passes none
+- [x] Entry point (`launcher.bat`) + `app-launcher/README.md` + root README link — PyInstaller packaging/icon not done
 
 ### Phase 5 — Optional
 - [ ] PID-sidecar reconnect across launcher restarts
@@ -244,5 +244,7 @@ rendering layer differs.
 - **2026-06-01** — Direction set to a **TUI** in the `rich` family (per user), reusing MeetingTracker's ecosystem. **Textual** recommended over pure `rich`+`msvcrt`. Plan §6 updated; engine/manifest/config-logic unchanged.
 - **2026-06-01** — Textual confirmed. **Phase 1 started**: ran a 10-agent verification fan-out to ground-truth the manifest (per-app entries, JSON Schema, prerequisite floors, path-existence audit, path-resolution contract). Corrections found: MeetingTracker Python floor is **3.8** (not 3.11 — code converts `Z`→`+00:00` before `fromisoformat`; `rich` sets the 3.8 floor); the overlay `dotnet build -c Release` outputs to `bin/Release/<TFM>/` with **no arch subfolder**; ClaudePanes' terminal prereq is **any-of** `wt`/`wezterm`/`tmux`/`zellij`.
 - **2026-06-01** — ⏸️ **PAUSED (resume here):** all manifest data is verified but `apps.json` + `apps.schema.json` are **not yet written to disk** — that's the next action. Verified per-app fields, the authored schema, and the path-resolution contract are in the session handoff (`summary.md`). After writing the two files, tick the Phase 1 box below; then continue with `app-launcher/requirements.txt` + the Textual skeleton.
+
+- **2026-06-09** — ✅ **Launcher built & verified.** Wrote `apps.json` + `apps.schema.json`, the engine (`paths`/`manifest`/`prerequisites`/`process_manager`/`prepare`), the config layer, and the full Textual TUI (`launcher.py` + screens/widgets). Verified on-machine: `--check` (manifest valid, live prereq detection), `--list`, and a headless Textual `run_test()` pilot all pass. Fixes along the way: Textual `_registry` attr collision (namespaced instance attrs to `_ma_*`), Windows cp1252 unicode crash (utf-8 `reconfigure`), and the overlay prepare ambiguity (`dotnet build` → `dotnet build MeetingNotesOverlay.csproj`, since that folder has both a `.sln` and a `.csproj`). Deps `pip-audit`-clean + pinned. Phases 1–2 ✅, Phase 3 mostly ✅. Remaining: ClaudePanes layout picker (currently blocks ClaudePanes launch), credentials-import, OAuth ready-sentinel, packaging.
 
 <!-- Append dated entries here as phases complete. Tick boxes in §7. -->
