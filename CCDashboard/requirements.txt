@@ -1,0 +1,6 @@
+# CCDashboard (Textual TUI) dependencies — pinned to pip-audit-clean versions
+# (shared with AppLauncher). The engine (scan/conversations) is otherwise stdlib;
+# it imports the sibling ClaudeBench package via sys.path, not pip.
+textual==8.2.7
+rich==14.3.3
+pyfiglet==1.0.4

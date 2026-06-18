@@ -77,11 +77,14 @@
     {
       "id": "cc-dashboard",
       "name": "CC Dashboard",
-      "description": "Jarvis-style web dashboard that visualizes all your global Claude Code config (skills, agents, memory, rules, settings) from ~/.claude.",
+      "description": "Jarvis-style terminal (TUI) for your global Claude Code config (skills/agents/memory/rules/settings) plus full-text conversation search + elevated resume.",
       "stack": "python",
       "icon": "🛰️",
       "cwd": "CCDashboard",
-      "prepare": null,
+      "prepare": {
+        "cmd": ["pip", "install", "-r", "requirements.txt"],
+        "sentinel": null
+      },
       "launch": {
         "cmd": ["python", "cc_dashboard.py"]
       },

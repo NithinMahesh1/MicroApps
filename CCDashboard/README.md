@@ -1,28 +1,29 @@
 # CCDashboard
 
-A read-only **Jarvis HUD dashboard** that visualises your entire global Claude Code
-config (`~/.claude/`) as a self-contained HTML file and opens it in your browser.
-No server, no network — pure Python stdlib generates `dist/dashboard.html` with all
-CSS, JS, and data inlined, then hands it off to the OS.
+A futuristic **terminal (TUI)** console for your global Claude Code setup
+(`~/.claude`), built with [Textual](https://textual.textualize.io/). Two tabs:
 
-> **ClaudeBench reuse:** CCDashboard imports the scanner from the sibling
-> `ClaudeBench/` app to enumerate config items, and reads the newest
-> `ClaudeBench/snapshots/*.json` for per-item token costs when available.
-> ClaudeBench itself is unchanged and still runs fully standalone (`list`,
-> `snapshot`, `diff`, `bench`).
+- **Config** — searchable inventory of your skills, agents, memory (`CLAUDE.md`),
+  rules, and settings. Shows per-item token costs when a ClaudeBench `count_tokens`
+  snapshot exists.
+- **Conversations** — full-text search across all your past Claude Code chats
+  (`~/.claude/projects/**/*.jsonl`). Press **Enter** on a result to resume it in an
+  **elevated PowerShell** (`claude --resume <id>` in that chat's working directory).
+
+The config inventory reuses ClaudeBench's scanner; the conversation engine is its own.
+Both are UI-agnostic, so the UI can change without touching them.
 
 ---
 
 ## Prerequisites
 
-- **Python 3.11+** — stdlib only; no `pip install` required for CCDashboard.
-- **A web browser** — the generated file is opened automatically with
-  `webbrowser.open`.
-- **Optional:** run a ClaudeBench `snapshot` first to populate token cost columns.
-  Without a snapshot the dashboard still shows all items; token fields are left blank.
+- **Python 3.11+**
+- `pip install -r requirements.txt` (Textual + Rich + pyfiglet — pinned, pip-audit-clean)
+- **Optional:** run a ClaudeBench `snapshot` first to populate the token-cost columns.
+  Without one, the Config tab still lists everything; token fields show `—`.
 
 ```powershell
-# One-time (optional) — capture token costs so the dashboard can display them
+# One-time (optional) — capture token costs so the Config tab can display them
 cd ClaudeBench
 pip install -r requirements.txt
 python claude_bench.py snapshot --label before-session
@@ -33,50 +34,37 @@ python claude_bench.py snapshot --label before-session
 ## Run
 
 ```powershell
-python CCDashboard/cc_dashboard.py
-```
-
-The command scans `~/.claude/`, builds `CCDashboard/dist/dashboard.html`, and opens
-it in your default browser.
-
-### Flags
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--config-dir DIR` | `~/.claude` | Path to the Claude Code config directory to scan |
-| `--out PATH` | `CCDashboard/dist/dashboard.html` | Where to write the generated file |
-| `--no-open` | *(opens by default)* | Build the file without launching the browser |
-
-```powershell
-# Build only, custom config dir
-python CCDashboard/cc_dashboard.py --config-dir D:\alt-claude --no-open
-
-# Custom output path
-python CCDashboard/cc_dashboard.py --out C:\tmp\hud.html
+cd CCDashboard
+pip install -r requirements.txt
+python cc_dashboard.py                       # or launch "CC Dashboard" from AppLauncher
+python cc_dashboard.py --config-dir <path>   # scan a different config dir
 ```
 
 ---
 
-## What you see
+## Keys
 
-The dashboard uses a **Jarvis / Iron-Man HUD aesthetic** — dark background,
-blue-cyan arc-reactor canvas centerpiece, glassmorphism panels, and animated
-scanlines.
+| Key | Action |
+|-----|--------|
+| `1` / `2` | switch tabs (Config / Conversations) |
+| type | search the active tab |
+| `↑` / `↓` | move the row cursor |
+| `Enter` | (Conversations) resume the selected chat — fires a UAC prompt, opens an admin PowerShell |
+| `ctrl+r` | refresh (re-scan config + re-index conversations) |
+| `q` | quit |
 
-**Six per-kind summary panels** (skill, agent, memory, rule, setting, mcp) each
-show an animated count-up to the total for that kind.
+---
 
-**Card grid** — every config item is a card showing kind badge, name, description,
-file size, and last-modified date. Use the **search box** to filter by text, or
-click a **kind chip** to filter by category.
+## Notes
 
-**Detail drawer** — clicking any card slides in a drawer with the full item details:
-kind, path, file size, token costs (always-loaded and invocation), description, and
-a content preview. Token cost columns appear only when a ClaudeBench `count_tokens`
-snapshot is available; otherwise those fields are blank.
-
-The UI respects **`prefers-reduced-motion`** and disables canvas animations and
-count-up transitions for users who have that system preference set.
+- Resume is safe: it only resumes a session present in the index, validates the
+  session id, and takes the working directory from the **transcript** — never from
+  user input. It writes a small `.ps1` and elevates a PowerShell with
+  `Start-Process -Verb RunAs`.
+- The conversation index reads `~/.claude/projects/**/*.jsonl` read-only; nothing is
+  written back. Heavy indexing runs in a background thread so the UI stays responsive.
+- **QuizMe** — a daily, spaced-repetition quiz drawn from your `Learning\Codebase`
+  notes (Claude-generated questions, Claude-graded answers) — is planned; see `PLAN.md`.
 
 ---
 
@@ -84,17 +72,17 @@ count-up transitions for users who have that system preference set.
 
 ```
 CCDashboard/
-  cc_dashboard.py          CLI entry point (scan -> build -> open)
+  cc_dashboard.py          entry point (parse --config-dir -> launch the TUI)
   ccdashboard/
-    scan.py                build_view_model(config_dir) -> dict
-    build.py               generate(view_model, *, out_path, open_browser) -> Path
-    web/
-      index.html           HTML skeleton with injection placeholders
-      styles.css           HUD look-and-feel (glassmorphism, scanlines, arc-reactor)
-      app.js               card grid, search/filter, detail drawer
-      hud.js               arc-reactor canvas animation + boot sequence
-  dist/                    generated output — git-ignored (machine-specific data)
+    scan.py                build_view_model(config_dir) -> config inventory (reuses ClaudeBench)
+    conversations.py       index_conversations / search / launch_resume
+    tui/
+      app.py               CCDashboardApp — Header, pyfiglet banner, tabs, Footer
+      config_view.py       Config tab (search + DataTable)
+      conversations_view.py  Conversations tab (search + DataTable + admin resume)
+      app.tcss             cyan/teal "Jarvis" theme
+  requirements.txt         textual / rich / pyfiglet (pinned, pip-audit-clean)
 ```
 
-`dist/` is listed in `.gitignore`; the generated HTML contains your local config
-paths and is never committed.
+The earlier web UI (a self-contained HTML dashboard + local server) was retired in
+favour of this TUI; the engine modules (`scan.py`, `conversations.py`) are unchanged.
