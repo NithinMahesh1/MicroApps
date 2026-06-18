@@ -59,9 +59,9 @@
       'RENDERING HUD …',
       'ONLINE.',
     ],
-    BOOT_CHAR_DELAY:  30,   // ms per character
-    BOOT_LINE_PAUSE: 180,   // ms between lines
-    BOOT_HOLD:       400,   // ms after last line before fade
+    BOOT_CHAR_DELAY:  14,   // ms per character
+    BOOT_LINE_PAUSE:  70,   // ms between lines
+    BOOT_HOLD:       200,   // ms after last line before fade
     BOOT_DONE_DELAY: 1200,  // ms total target for reduced-motion fast-path
   };
 
@@ -588,6 +588,10 @@
 
     // Nothing to animate
     if (!bootEl || !bootTextEl) return;
+
+    // Click anywhere on the overlay to skip the boot animation immediately.
+    bootEl.style.cursor = 'pointer';
+    bootEl.addEventListener('click', function () { hideBoot(bootEl); });
 
     if (REDUCED) {
       // Show final line immediately, then hide

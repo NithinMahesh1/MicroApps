@@ -126,10 +126,17 @@ body::after {
   transition: opacity 0.6s ease, visibility 0.6s ease;
 }
 
-#boot.fade-out {
+#boot.fade-out,
+#boot.done {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
+}
+
+/* The JS sets the `hidden` attribute to fully remove the overlay once faded;
+   without this the explicit `display: flex` above would override `hidden`. */
+#boot[hidden] {
+  display: none !important;
 }
 
 #boot-text {
