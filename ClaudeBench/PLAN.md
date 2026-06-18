@@ -5,7 +5,7 @@ token footprint of the user's global Claude Code config** (`~/.claude/`): skills
 agents, MCP tool schemas, `CLAUDE.md`, rules, and `settings.json`.
 
 > This plan was produced from a multi-agent parallel spec pass (spec, architecture,
-> and plan authored on 2026-06-18).  Build has not yet started.
+> and plan authored on 2026-06-18).  Build: Phases 0–1 complete (2026-06-18); Phase 2 (`diff`) next.
 
 ---
 
@@ -70,6 +70,18 @@ and is always budget-guarded.
 ### Phase 1 — Static MVP (FREE)
 
 Goal: `list` and `snapshot` subcommands work; no inference is called.
+
+**Status: ✅ COMPLETE — built + verified 2026-06-18 (two parallel agents).** Final
+API follows SPEC/ARCHITECTURE: `scanner.scan(config_dir) -> list[Component]`;
+`tokenizer.tokenize(components, *, config_dir, model) -> (list[Component], mode)`
+(net counts via `client.messages.count_tokens`, fixed per-call overhead
+subtracted); `models.Component` / `models.Snapshot` / `models.build_snapshot`;
+`snapshot.save/load/find_latest`; `report.render_list/render_snapshot`;
+`claude_bench.py` wires `list` + `snapshot`. Verified on this machine: 80
+components scanned, table renders cleanly (UTF-8), snapshot saved to the
+git-ignored `snapshots/`. **Real counts need `ANTHROPIC_API_KEY`** — not set
+here, so it reports `claude-p-fallback` placeholder zeros (no allowance spent).
+The checklist below is the original plan; the shipped names supersede it.
 
 **Scanner (`claudebench/scanner.py`)**
 - [ ] Walk `~/.claude/` and classify each file into: `always_loaded` vs
@@ -263,5 +275,6 @@ Global flags:
 ## 8. Progress log
 
 - **2026-06-18** — Spec + architecture + plan authored (multi-agent); build not started.
+- **2026-06-18** — Phase 0 + Phase 1 complete. Pinned + pip-audited `anthropic==0.109.2` (clean). Built the static MVP with two parallel agents (engine: models/scanner/snapshot; frontend: tokenizer/report/CLI). Verified end-to-end: `list` + `snapshot` run across 80 components, clean UTF-8 render, snapshot saved + git-ignored, graceful fallback. **Finding:** `anthropic` installed but no `ANTHROPIC_API_KEY` → real counts need a key (currently `claude-p-fallback` zeros). Next: set an API key and re-run `snapshot` for real numbers; then Phase 2 (`diff`).
 
 <!-- Append dated entries here as phases complete. Tick boxes in §3. -->
