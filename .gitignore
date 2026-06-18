@@ -44,6 +44,8 @@ ENV/
 # Claude Code local state (machine-specific — do not commit)
 # ============================================================
 **/.claude/settings.local.json
+# Agent git-worktrees created by Claude Code (full repo copies — never commit)
+.claude/worktrees/
 
 # ============================================================
 # Editors / IDEs

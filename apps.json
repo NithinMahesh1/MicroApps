@@ -73,6 +73,27 @@
         { "type": "binary-any", "names": ["wt", "wezterm", "tmux", "zellij"] }
       ],
       "docs": "ClaudePanes/README.md"
+    },
+    {
+      "id": "cc-dashboard",
+      "name": "CC Dashboard",
+      "description": "Jarvis-style web dashboard that visualizes all your global Claude Code config (skills, agents, memory, rules, settings) from ~/.claude.",
+      "stack": "python",
+      "icon": "🛰️",
+      "cwd": "CCDashboard",
+      "prepare": null,
+      "launch": {
+        "cmd": ["python", "cc_dashboard.py"]
+      },
+      "launchMode": "console",
+      "stoppable": false,
+      "configFile": null,
+      "configTemplate": null,
+      "configSchema": null,
+      "prerequisites": [
+        { "type": "python", "minVersion": "3.11" }
+      ],
+      "docs": "CCDashboard/README.md"
     }
   ]
 }

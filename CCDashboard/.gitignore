@@ -1,0 +1,4 @@
+# CCDashboard generated artifacts — never commit (machine-specific data)
+dist/
+__pycache__/
+*.pyc
