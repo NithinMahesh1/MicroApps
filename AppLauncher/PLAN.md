@@ -92,7 +92,7 @@ the `stack` field (that's cosmetic); the actual command lives in `launch.cmd`.
       "name": "Meeting Notes Overlay",
       "description": "Always-on-top WinUI 3 overlay invisible to screen capture.",
       "stack": "dotnet",
-      "cwd": "meeting-notes-overlay",
+      "cwd": "MeetingNotesOverlay",
       "prepare": { "cmd": ["dotnet", "build", "-c", "Release"], "sentinel": "bin/Release/net10.0-windows10.0.22621.0/MeetingNotesOverlay.exe" },
       "launch": { "cmd": ["bin/Release/net10.0-windows10.0.22621.0/MeetingNotesOverlay.exe"] },
       "launchMode": "gui",
@@ -101,7 +101,7 @@ the `stack` field (that's cosmetic); the actual command lives in `launch.cmd`.
       "configTemplate": "config/meeting-notes-overlay.example.json",
       "configSchema": null,
       "prerequisites": [{ "type": "dotnet-sdk", "minVersion": "10.0" }],
-      "docs": "meeting-notes-overlay/README.md"
+      "docs": "MeetingNotesOverlay/README.md"
     },
     {
       "id": "claude-panes",
@@ -202,7 +202,7 @@ rendering layer differs.
 
 ### Phase 1 — Manifest + skeleton ✅
 - [x] **Confirm TUI flavor** — **Textual** chosen (rich-family; adds `textual`)
-- [x] Add `app-launcher/requirements.txt` (`textual`, `rich`, `pyfiglet`; pinned + `pip-audit`-clean)
+- [x] Add `AppLauncher/requirements.txt` (`textual`, `rich`, `pyfiglet`; pinned + `pip-audit`-clean)
 - [x] `apps.json` (+ `apps.schema.json`) at repo root
 - [x] Launcher reads manifest, renders the app list with status badges
 - [x] Prerequisite detection (python / dotnet-sdk net10 / wt.exe) + fix hints
@@ -222,7 +222,7 @@ rendering layer differs.
 - [x] Status badges + error surfacing (prepare output tail shown on failure) — live-log panel not built
 - [ ] First-run OAuth "starting…" handling (ready sentinel) — *deferred*
 - [x] ClaudePanes layout picker — ✅ **RESOLVED**: `argPicker` manifest field + `ArgPickerScreen` modal; chosen layout passed as `extra_args` to `process_manager.launch`
-- [x] Entry point (`launcher.bat`) + `app-launcher/README.md` + root README link — PyInstaller packaging/icon not done
+- [x] Entry point (`launcher.bat`) + `AppLauncher/README.md` + root README link — PyInstaller packaging/icon not done
 
 ### Phase 5 — Optional
 - [ ] PID-sidecar reconnect across launcher restarts
@@ -243,7 +243,7 @@ rendering layer differs.
 - **2026-06-01** — Plan created from a 10-agent parallel research pass. Phase 0 (central config foundation) already complete from the pre-public security cleanup.
 - **2026-06-01** — Direction set to a **TUI** in the `rich` family (per user), reusing MeetingTracker's ecosystem. **Textual** recommended over pure `rich`+`msvcrt`. Plan §6 updated; engine/manifest/config-logic unchanged.
 - **2026-06-01** — Textual confirmed. **Phase 1 started**: ran a 10-agent verification fan-out to ground-truth the manifest (per-app entries, JSON Schema, prerequisite floors, path-existence audit, path-resolution contract). Corrections found: MeetingTracker Python floor is **3.8** (not 3.11 — code converts `Z`→`+00:00` before `fromisoformat`; `rich` sets the 3.8 floor); the overlay `dotnet build -c Release` outputs to `bin/Release/<TFM>/` with **no arch subfolder**; ClaudePanes' terminal prereq is **any-of** `wt`/`wezterm`/`tmux`/`zellij`.
-- **2026-06-01** — ⏸️ **PAUSED (resume here):** all manifest data is verified but `apps.json` + `apps.schema.json` are **not yet written to disk** — that's the next action. Verified per-app fields, the authored schema, and the path-resolution contract are in the session handoff (`summary.md`). After writing the two files, tick the Phase 1 box below; then continue with `app-launcher/requirements.txt` + the Textual skeleton.
+- **2026-06-01** — ⏸️ **PAUSED (resume here):** all manifest data is verified but `apps.json` + `apps.schema.json` are **not yet written to disk** — that's the next action. Verified per-app fields, the authored schema, and the path-resolution contract are in the session handoff (`summary.md`). After writing the two files, tick the Phase 1 box below; then continue with `AppLauncher/requirements.txt` + the Textual skeleton.
 
 - **2026-06-09** — ✅ **Launcher built & verified.** Wrote `apps.json` + `apps.schema.json`, the engine (`paths`/`manifest`/`prerequisites`/`process_manager`/`prepare`), the config layer, and the full Textual TUI (`launcher.py` + screens/widgets). Verified on-machine: `--check` (manifest valid, live prereq detection), `--list`, and a headless Textual `run_test()` pilot all pass. Fixes along the way: Textual `_registry` attr collision (namespaced instance attrs to `_ma_*`), Windows cp1252 unicode crash (utf-8 `reconfigure`), and the overlay prepare ambiguity (`dotnet build` → `dotnet build MeetingNotesOverlay.csproj`, since that folder has both a `.sln` and a `.csproj`). Deps `pip-audit`-clean + pinned. Phases 1–2 ✅, Phase 3 mostly ✅. Remaining: ClaudePanes layout picker (currently blocks ClaudePanes launch), credentials-import, OAuth ready-sentinel, packaging.
 - **2026-06-10** — ✅ **`argPicker` capability added; ClaudePanes launch gap closed.** New optional `launch.argPicker` manifest field (`{ label, glob }`) triggers a pre-launch file-selection modal. `apps.json` `claude-panes` entry updated with `argPicker` (glob `examples/*.toml`). New modules: `arg_picker.py` (stdlib discovery) and `tui/arg_picker_screen.py` (`ArgPickerScreen` modal). `process_manager.launch` extended with `extra_args`. Smoke test extended. ClaudePanes now launches correctly end-to-end.

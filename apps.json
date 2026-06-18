@@ -32,7 +32,7 @@
       "description": "Always-on-top WinUI 3 overlay invisible to screen capture (Teams/Slack/Zoom/Meet). Renders your .txt/.md notes.",
       "stack": "dotnet",
       "icon": "📝",
-      "cwd": "meeting-notes-overlay",
+      "cwd": "MeetingNotesOverlay",
       "prepare": {
         "cmd": ["dotnet", "build", "MeetingNotesOverlay.csproj", "-c", "Release"],
         "sentinel": "bin/Release/net10.0-windows10.0.22621.0/MeetingNotesOverlay.exe"
@@ -49,7 +49,7 @@
         { "type": "dotnet-sdk", "minVersion": "10.0" },
         { "type": "os", "name": "Windows", "minVersion": "10.0.19041" }
       ],
-      "docs": "meeting-notes-overlay/README.md"
+      "docs": "MeetingNotesOverlay/README.md"
     },
     {
       "id": "claude-panes",

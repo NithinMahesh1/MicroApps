@@ -38,7 +38,7 @@ This means your existing notes from `%USERPROFILE%\TODOs` render with proper for
 ## How to Run
 
 ```bash
-cd meeting-notes-overlay
+cd MeetingNotesOverlay
 dotnet run
 ```
 

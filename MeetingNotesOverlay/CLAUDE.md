@@ -1,4 +1,4 @@
-# meeting-notes-overlay
+# MeetingNotesOverlay
 
 **Stack:** .NET 10, WinUI 3, Windows App SDK 1.8, CommunityToolkit MarkdownTextBlock
 **Purpose:** Always-on-top overlay hidden from screen capture (Teams/Slack/Zoom/Meet)

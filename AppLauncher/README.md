@@ -8,7 +8,7 @@ step, then launches (and, where possible, stops) the app.
 ## Install
 
 ```powershell
-cd app-launcher
+cd AppLauncher
 pip install -r requirements.txt   # textual, rich, pyfiglet (+ optional jsonschema)
 ```
 

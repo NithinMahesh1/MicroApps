@@ -5,7 +5,7 @@ separate agent; everyone codes against the signatures below so the pieces fit.
 
 ## Package layout
 ```
-app-launcher/
+AppLauncher/
   launcher.py              # entry point (lazy-imports tui; --check is headless)
   launcher.bat             # `python launcher.py %*`
   requirements.txt         # textual, rich, pyfiglet
@@ -137,5 +137,5 @@ Engine API the screens call: `manifest.load_registry`, `prerequisites.check_all`
 - Use `argparse`.
 
 ## Tests (`tests/`)
-- pytest, run from `app-launcher/` (`python -m pytest`). Import as `from microapps_launcher.x import y`.
+- pytest, run from `AppLauncher/` (`python -m pytest`). Import as `from microapps_launcher.x import y`.
 - Engine tests are pure (no textual). Use `tmp_path` to fake repo roots/sentinels; monkeypatch `shutil.which`/`subprocess` for prerequisites/process tests. `test_integration.py` loads the **real** `../apps.json` (resolve via `find_repo_root`), validates it, builds descriptors for both config templates, and runs `check_all` for each app (asserting it returns results without raising).
