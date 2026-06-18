@@ -1,0 +1,4 @@
+# ClaudeBench dependencies
+# Static token-counting uses the Anthropic SDK; everything else is Python stdlib.
+# Pinned to a pip-audit-clean version (see PLAN.md, Phase 0).
+anthropic==0.109.2

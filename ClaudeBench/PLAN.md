@@ -62,8 +62,8 @@ and is always budget-guarded.
 - [ ] Scaffold `ClaudeBench/` folder structure: `claude_bench.py`, `claudebench/`,
       `snapshots/`, `requirements.txt`, `docs/`
 - [ ] Confirm Python 3.11+ is available on the target machine
-- [ ] Pin `anthropic` SDK in `requirements.txt`; run `pip-audit` and verify clean
-- [ ] Add `ClaudeBench/snapshots/` to the repo `.gitignore`
+- [x] Pin `anthropic` SDK in `requirements.txt`; run `pip-audit` and verify clean — **2026-06-18: `anthropic==0.109.2`, pip-audit clean (no known vulns across the full transitive tree)**
+- [x] Add `ClaudeBench/snapshots/` to git-ignore — **done via `ClaudeBench/.gitignore`**
 
 ---
 
