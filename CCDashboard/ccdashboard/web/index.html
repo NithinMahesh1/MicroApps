@@ -33,6 +33,15 @@
       <canvas id="reactor" aria-hidden="true"></canvas>
     </section>
 
+    <!-- ── TAB NAV (Config / Conversations) ───────────── -->
+    <nav id="tabs" aria-label="Views">
+      <button class="tab is-active" data-view="config" aria-pressed="true">Config</button>
+      <button class="tab" data-view="conversations" aria-pressed="false">Conversations</button>
+    </nav>
+
+    <!-- ══ VIEW: CONFIG ══════════════════════════════════ -->
+    <div id="view-config" class="view">
+
     <!-- ── SUMMARY PANELS (six kinds) ─────────────────── -->
     <section id="summary" aria-label="Config item counts">
 
@@ -97,6 +106,20 @@
     <main id="grid" aria-label="Config items" aria-live="polite">
       <!-- .card elements injected here by app.js -->
     </main>
+
+    </div><!-- /#view-config -->
+
+    <!-- ══ VIEW: CONVERSATIONS (live server mode) ════════ -->
+    <div id="view-conversations" class="view" hidden aria-label="Conversations">
+      <section id="conv-controls">
+        <label for="conv-search" class="sr-only">Search conversations</label>
+        <input id="conv-search" type="search" placeholder="search your conversations…" autocomplete="off" spellcheck="false" aria-label="Search conversations">
+        <span id="conv-count" class="conv-count"></span>
+      </section>
+      <main id="conv-results" aria-live="polite">
+        <!-- conversation rows injected by app.js (server mode) -->
+      </main>
+    </div>
 
     <!-- ── DETAIL DRAWER ──────────────────────────────── -->
     <aside id="detail" class="glass" hidden aria-label="Item detail" aria-modal="true" role="dialog">

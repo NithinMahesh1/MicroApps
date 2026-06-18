@@ -1,14 +1,22 @@
 """
-build.py — CCDashboard HTML builder.
+build.py — CCDashboard HTML assembler.
 
-Reads the four web assets, inlines CSS + data + JS into index.html via
-literal placeholder replacement, writes the self-contained HTML file, and
-optionally opens it in the browser.
+Inlines the four web assets (CSS + data + HUD JS + app JS) into index.html via
+single-pass placeholder replacement, producing one self-contained HTML string.
+
+Two entry points:
+  * ``render()``   — return the assembled HTML (used by both the static generator
+                     and the live server).
+  * ``generate()`` — render, write to a file, optionally open in the browser.
+
+``server_base`` distinguishes the two runtime modes: when set, the page knows a
+local API is available (live conversation search / resume / quiz); when ``None``,
+it is a static, config-only snapshot.
 """
-
 from __future__ import annotations
 
 import json
+import re
 import webbrowser
 from pathlib import Path
 
@@ -33,67 +41,40 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def generate(
-    view_model: dict,
-    *,
-    out_path: Path,
-    open_browser: bool = True,
-) -> Path:
-    """
-    Build a self-contained dashboard HTML file from the view model.
-
-    Steps:
-    1. Read the four web assets from ccdashboard/web/.
-    2. Serialize view_model as JSON and wrap it in a JS variable assignment.
-    3. Replace the four placeholder tokens in index.html with the inlined content.
-    4. Write the result to out_path (creating parent dirs as needed).
-    5. Optionally open the file in the default browser.
+def render(view_model: dict, *, server_base: str | None = None) -> str:
+    """Assemble the self-contained dashboard HTML from the view model.
 
     Parameters
     ----------
     view_model:
         The dict returned by ``ccdashboard.scan.build_view_model``.
-    out_path:
-        Destination file path (e.g. ``CCDashboard/dist/dashboard.html``).
-    open_browser:
-        When True (default), call ``webbrowser.open`` on the generated file.
-
-    Returns
-    -------
-    Path
-        The resolved path of the written file.
-
-    Raises
-    ------
-    FileNotFoundError
-        If any of the four required web assets are missing.
+    server_base:
+        When provided (e.g. ``"http://127.0.0.1:8765"``), the page runs in server
+        mode and may call the local API; when ``None`` it is a static snapshot.
     """
     index_html = _read(_WEB / "index.html")
     css = _read(_WEB / "styles.css")
     hud_js = _read(_WEB / "hud.js")
     app_js = _read(_WEB / "app.js")
 
-    # Build the data injection script.
-    # Escape "</" -> "<\/" so the serialized JSON cannot accidentally close the
-    # surrounding <script> tag if any string value contains "</".
-    json_payload = json.dumps(view_model, ensure_ascii=False).replace("</", "<\\/")
-    data_js = f"window.CCDASH_DATA = {json_payload};"
+    # Escape "</" -> "<\/" so serialized JSON can't accidentally close the script.
+    payload = json.dumps(view_model, ensure_ascii=False).replace("</", "<\\/")
+    server_js = json.dumps(server_base) if server_base else "null"
+    data_js = f"window.CCDASH_DATA = {payload};\nwindow.CCDASH_SERVER = {server_js};"
 
-    # Inline assets in a SINGLE PASS so token-like text inside one asset's
-    # content is never mistaken for a placeholder belonging to another asset.
-    # (A plain chain of str.replace() is order-dependent: a token can survive if
-    # a later-inlined asset's text happens to contain it.) Still no str.format/%
-    # so braces and percent signs in CSS/JS are untouched.
-    import re
-
+    # Single-pass replacement: token-like text inside one asset is never mistaken
+    # for a placeholder belonging to another (a plain replace chain is order-
+    # dependent). No str.format/% so braces/percent signs in CSS/JS are untouched.
     tokens = {_TOKEN_CSS: css, _TOKEN_DATA: data_js, _TOKEN_HUD: hud_js, _TOKEN_APP: app_js}
     pattern = re.compile("|".join(re.escape(t) for t in tokens))
-    final_html = pattern.sub(lambda m: tokens[m.group(0)], index_html)
+    return pattern.sub(lambda m: tokens[m.group(0)], index_html)
 
+
+def generate(view_model: dict, *, out_path: Path, open_browser: bool = True) -> Path:
+    """Render a static, config-only dashboard to ``out_path`` and optionally open it."""
+    html = render(view_model, server_base=None)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(final_html, encoding="utf-8")
-
+    out_path.write_text(html, encoding="utf-8")
     if open_browser:
         webbrowser.open(out_path.resolve().as_uri())
-
     return out_path

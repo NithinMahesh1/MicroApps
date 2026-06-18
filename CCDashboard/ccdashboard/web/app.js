@@ -477,3 +477,149 @@
   });
 
 }());
+
+/* ============================================================
+   Conversations + tab switching — CCDashboard server mode.
+   Self-contained IIFE; reads window.CCDASH_SERVER. No-ops (and disables the
+   Conversations tab) in a static snapshot where there is no local server.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  const base = window.CCDASH_SERVER || null;
+  const byId = function (id) { return document.getElementById(id); };
+
+  function setupTabs() {
+    const tabs = Array.from(document.querySelectorAll('#tabs .tab'));
+    const views = { config: byId('view-config'), conversations: byId('view-conversations') };
+    if (!tabs.length) return;
+    let loaded = false;
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        if (tab.disabled) return;
+        const name = tab.dataset.view;
+        tabs.forEach(function (t) {
+          const on = t.dataset.view === name;
+          t.classList.toggle('is-active', on);
+          t.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        Object.keys(views).forEach(function (k) {
+          if (views[k]) views[k].hidden = (k !== name);
+        });
+        if (name === 'conversations' && base && !loaded) {
+          loaded = true;
+          loadConversations('');
+        }
+      });
+    });
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? String(iso).slice(0, 16) : d.toLocaleString();
+  }
+
+  function renderResults(results) {
+    const wrap = byId('conv-results');
+    const count = byId('conv-count');
+    if (!wrap) return;
+    wrap.textContent = '';
+    if (count) count.textContent = results.length + ' conversation' + (results.length === 1 ? '' : 's');
+    const frag = document.createDocumentFragment();
+    results.forEach(function (r) {
+      const row = document.createElement('article');
+      row.className = 'conv-row glass';
+      row.dataset.session = r.session_id;
+
+      const head = document.createElement('div');
+      head.className = 'conv-head';
+      const title = document.createElement('span');
+      title.className = 'conv-title';
+      title.textContent = r.title || '(untitled)';
+      const branch = document.createElement('span');
+      branch.className = 'conv-branch';
+      branch.textContent = r.git_branch || '—';
+      head.appendChild(title);
+      head.appendChild(branch);
+
+      const meta = document.createElement('div');
+      meta.className = 'conv-meta';
+      meta.textContent = r.cwd + '   ·   ' + (r.message_count || 0) + ' msgs   ·   ' + fmtDate(r.last_at);
+
+      row.appendChild(head);
+      row.appendChild(meta);
+
+      if (r.snippet) {
+        const snip = document.createElement('div');
+        snip.className = 'conv-snippet';
+        snip.textContent = r.snippet;
+        row.appendChild(snip);
+      }
+
+      const btn = document.createElement('button');
+      btn.className = 'conv-resume';
+      btn.type = 'button';
+      btn.textContent = '▸ Resume (admin)';
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        resume(r.session_id, btn);
+      });
+      row.appendChild(btn);
+
+      frag.appendChild(row);
+    });
+    wrap.appendChild(frag);
+  }
+
+  function loadConversations(q) {
+    if (!base) return;
+    fetch(base + '/api/search?q=' + encodeURIComponent(q || ''))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { renderResults(d.results || []); })
+      .catch(function (err) {
+        const wrap = byId('conv-results');
+        if (wrap) wrap.textContent = 'Search failed: ' + err;
+      });
+  }
+
+  function resume(sessionId, btn) {
+    if (!base) return;
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '… launching';
+    fetch(base + '/api/resume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: sessionId }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { btn.textContent = d.ok ? '✓ accept the UAC prompt' : ('✕ ' + (d.error || 'failed')); })
+      .catch(function (err) { btn.textContent = '✕ ' + err; })
+      .finally(function () {
+        setTimeout(function () { btn.disabled = false; btn.textContent = original; }, 4500);
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    setupTabs();
+    if (!base) {
+      const convTab = document.querySelector('#tabs .tab[data-view="conversations"]');
+      if (convTab) {
+        convTab.disabled = true;
+        convTab.classList.add('is-disabled');
+        convTab.title = 'Run the live server (python cc_dashboard.py) to search & resume conversations';
+      }
+      return;
+    }
+    const search = byId('conv-search');
+    if (search) {
+      let timer = null;
+      search.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () { loadConversations(search.value); }, 180);
+      });
+    }
+  });
+
+}());
