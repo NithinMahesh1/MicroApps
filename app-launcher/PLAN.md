@@ -55,7 +55,7 @@ the `stack` field (that's cosmetic); the actual command lives in `launch.cmd`.
 | `icon` | string? | PNG/ICO path or emoji |
 | `cwd` | string | Working dir for prepare+launch, relative to repo root |
 | `prepare` | object? | One-time setup: `{ cmd: string[], sentinel: string? }`. If `sentinel` file exists → skip. `null` sentinel ⇒ run every cold start (idempotent installs) |
-| `launch` | object | `{ cmd: string[] }` (argv; no shell expansion) |
+| `launch` | object | `{ cmd: string[], argPicker?: { label: string, glob: string } }` (argv; no shell expansion; `argPicker` triggers a runtime file-selection menu) |
 | `launchMode` | enum | `gui` \| `console` \| `fire-and-forget` → drives spawn flags |
 | `stoppable` | bool | Whether Stop is meaningful |
 | `configFile` | string? | Repo-relative live (git-ignored) config |
@@ -221,7 +221,7 @@ rendering layer differs.
 ### Phase 4 — Polish (partial)
 - [x] Status badges + error surfacing (prepare output tail shown on failure) — live-log panel not built
 - [ ] First-run OAuth "starting…" handling (ready sentinel) — *deferred*
-- [ ] ClaudePanes layout picker — ⚠️ **needed for ClaudePanes to launch**: its `start` requires a `<layout>` and the manifest currently passes none
+- [x] ClaudePanes layout picker — ✅ **RESOLVED**: `argPicker` manifest field + `ArgPickerScreen` modal; chosen layout passed as `extra_args` to `process_manager.launch`
 - [x] Entry point (`launcher.bat`) + `app-launcher/README.md` + root README link — PyInstaller packaging/icon not done
 
 ### Phase 5 — Optional
@@ -246,5 +246,6 @@ rendering layer differs.
 - **2026-06-01** — ⏸️ **PAUSED (resume here):** all manifest data is verified but `apps.json` + `apps.schema.json` are **not yet written to disk** — that's the next action. Verified per-app fields, the authored schema, and the path-resolution contract are in the session handoff (`summary.md`). After writing the two files, tick the Phase 1 box below; then continue with `app-launcher/requirements.txt` + the Textual skeleton.
 
 - **2026-06-09** — ✅ **Launcher built & verified.** Wrote `apps.json` + `apps.schema.json`, the engine (`paths`/`manifest`/`prerequisites`/`process_manager`/`prepare`), the config layer, and the full Textual TUI (`launcher.py` + screens/widgets). Verified on-machine: `--check` (manifest valid, live prereq detection), `--list`, and a headless Textual `run_test()` pilot all pass. Fixes along the way: Textual `_registry` attr collision (namespaced instance attrs to `_ma_*`), Windows cp1252 unicode crash (utf-8 `reconfigure`), and the overlay prepare ambiguity (`dotnet build` → `dotnet build MeetingNotesOverlay.csproj`, since that folder has both a `.sln` and a `.csproj`). Deps `pip-audit`-clean + pinned. Phases 1–2 ✅, Phase 3 mostly ✅. Remaining: ClaudePanes layout picker (currently blocks ClaudePanes launch), credentials-import, OAuth ready-sentinel, packaging.
+- **2026-06-10** — ✅ **`argPicker` capability added; ClaudePanes launch gap closed.** New optional `launch.argPicker` manifest field (`{ label, glob }`) triggers a pre-launch file-selection modal. `apps.json` `claude-panes` entry updated with `argPicker` (glob `examples/*.toml`). New modules: `arg_picker.py` (stdlib discovery) and `tui/arg_picker_screen.py` (`ArgPickerScreen` modal). `process_manager.launch` extended with `extra_args`. Smoke test extended. ClaudePanes now launches correctly end-to-end.
 
 <!-- Append dated entries here as phases complete. Tick boxes in §7. -->

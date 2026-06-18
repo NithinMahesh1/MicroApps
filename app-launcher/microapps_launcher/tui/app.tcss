@@ -54,3 +54,35 @@
     height: auto;
     padding-top: 1;
 }
+
+ArgPickerScreen {
+    align: center middle;
+}
+
+#picker-box {
+    width: 72;
+    height: auto;
+    max-height: 80%;
+    padding: 1 2;
+    background: $surface;
+    border: thick $accent;
+}
+
+#picker-title {
+    text-style: bold;
+    padding-bottom: 1;
+}
+
+#picker-list {
+    height: auto;
+    max-height: 16;
+}
+
+#picker-actions {
+    height: auto;
+    padding-top: 1;
+}
+
+#picker-actions Button {
+    margin: 0 1;
+}

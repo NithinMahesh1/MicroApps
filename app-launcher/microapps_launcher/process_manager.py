@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 
 from microapps_launcher import paths
@@ -20,14 +21,17 @@ class ProcessManager:
     def __init__(self) -> None:
         self._procs: dict[str, subprocess.Popen] = {}
 
-    def launch(self, root: Path, app: App) -> None:
+    def launch(self, root: Path, app: App, extra_args: Sequence[str] = ()) -> None:
         """Spawn *app* with the creation flags appropriate to its launch mode.
 
         ``console`` apps get their own interactive window; ``fire-and-forget``
         apps are detached and not tracked; ``gui`` apps run normally. Standard
-        streams are never redirected.
+        streams are never redirected. ``extra_args`` are appended verbatim to the
+        resolved command (used for launch-time picks, e.g. a ClaudePanes layout).
         """
         argv = paths.resolve_command(root, app, app.launch.cmd)
+        if extra_args:
+            argv = [*argv, *extra_args]
         cwd = str(paths.resolve_cwd(root, app))
 
         flags = 0

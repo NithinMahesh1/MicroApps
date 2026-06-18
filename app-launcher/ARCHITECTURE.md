@@ -11,12 +11,13 @@ app-launcher/
   requirements.txt         # textual, rich, pyfiglet
   microapps_launcher/
     __init__.py
-    models.py              # DONE (contract): Registry, App, Launch, Prepare, Prerequisite
+    models.py              # DONE (contract): Registry, App, Launch (+ ArgPicker), Prepare, Prerequisite
     paths.py               # repo-root + path/command resolution
     manifest.py            # load + validate apps.json -> Registry
     prerequisites.py       # detect runtimes; PrereqResult
-    process_manager.py     # spawn/track/stop per launchMode
+    process_manager.py     # spawn/track/stop per launchMode; accepts extra_args
     prepare.py             # build-once sentinel + run prepare
+    arg_picker.py          # discover file choices for argPicker (glob → ArgChoice list)
     config/
       __init__.py
       descriptors.py       # FieldDescriptor + infer from *.example.json
@@ -25,7 +26,8 @@ app-launcher/
     tui/
       __init__.py
       app.py               # MicroAppsLauncher(App)
-      app_list.py          # AppListScreen
+      app_list.py          # AppListScreen (pushes ArgPickerScreen when argPicker set)
+      arg_picker_screen.py # ArgPickerScreen modal (OptionList → chosen file path)
       config_screen.py     # ConfigScreen
       widgets.py           # StatusBadge, SecretInput, StringListEditor
       app.tcss             # styling
@@ -51,6 +53,10 @@ app-launcher/
   - else leave as-is (PATH lookup, e.g. `dotnet`).
   - remaining args unchanged.
 
+## `models.py` — `Launch` and `ArgPicker`
+- `@dataclass(frozen=True) class ArgPicker: label: str; glob: str` — parsed from the optional `launch.argPicker` manifest object.
+- `Launch` has an `arg_picker: ArgPicker | None` field (default `None`). When present, the TUI shows a file-selection prompt before launch; the chosen path is appended to the spawn argv as an extra argument.
+
 ## `manifest.py`
 - `class ManifestError(Exception)`.
 - `load_registry(root: Path) -> Registry` — read `root/"apps.json"`, JSON-parse, validate, return `Registry.from_dict(data)`. Wrap failures in `ManifestError`.
@@ -71,9 +77,16 @@ app-launcher/
 - `parse_version(s: str) -> tuple[int, ...]` and `version_ge(a: str, b: str) -> bool` helpers (lenient: ignore non-numeric suffixes).
 - Never raise; a failed probe returns `ok=False` with a helpful `detail`.
 
+## `arg_picker.py`
+- `@dataclass(frozen=True) class ArgChoice: value: str; label: str; description: str` — `value` is a cwd-relative POSIX path appended verbatim to the launch argv; `label` is the filename stem; `description` is a best-effort top-level summary (for `.toml` files: the first string scalar found; tolerant, never raises).
+- `discover_choices(root: Path, app: App) -> list[ArgChoice]` — expands `app.launch.arg_picker.glob` under `resolve_cwd(root, app)` using `pathlib.Path.glob`; returns each match as an `ArgChoice` with `value` = the file's path relative to the app cwd in POSIX notation. Returns `[]` if the glob matches nothing.
+- Pure stdlib; **never imports textual**. Engine modules may call this safely.
+
+**ClaudePanes / relative-path rationale:** `claude_panes.py start <layout>` treats any argument containing `/`, `\`, or ending in `.toml` as a file path resolved against the **process cwd**. The launcher spawns ClaudePanes with `cwd = <repo>/ClaudePanes/`, so passing `examples/solo-claude.toml` (a cwd-relative path) resolves correctly to `<repo>/ClaudePanes/examples/solo-claude.toml`. This is preferred over calling `claude-panes list --json` because that command only scans `~/.config/claude-panes/layouts/`, which does not contain the repo's shipped `examples/*.toml` files and does not exist on a fresh clone.
+
 ## `process_manager.py`
 - `class ProcessManager:` holds `self._procs: dict[str, subprocess.Popen]`.
-  - `launch(self, root: Path, app: App) -> None` — build argv via `paths.resolve_command`; spawn with `cwd=resolve_cwd(...)`. Windows creation flags by `app.launch_mode`:
+  - `launch(self, root: Path, app: App, extra_args: Sequence[str] = ()) -> None` — build argv via `paths.resolve_command`; append `extra_args` after the resolved command; spawn with `cwd=resolve_cwd(...)`. Windows creation flags by `app.launch_mode`:
     - `console` -> `CREATE_NEW_CONSOLE`; store handle under `app.id`.
     - `gui` -> flags `0` (no redirection); store handle.
     - `fire-and-forget` -> `DETACHED_PROCESS | CREATE_NO_WINDOW`; do **not** store.
@@ -106,8 +119,10 @@ Engine API the screens call: `manifest.load_registry`, `prerequisites.check_all`
   - `class StatusBadge(Static)` — `update_status(status: str)` -> renders ● running (green) / ○ stopped (dim).
   - `class SecretInput(Widget)` — wraps an `Input(password=True)` + a reveal toggle (`Button`/key) flipping `password`. `value` property.
   - `class StringListEditor(Widget)` — a list with Add/Remove/Up/Down for `list[str]`; `values: list[str]` property; seeded via constructor.
+- `arg_picker_screen.py`:
+  - `class ArgPickerScreen(ModalScreen[str | None])` — constructed with `choices: list[ArgChoice]` and `label: str`. Renders an `OptionList` of `choice.label` entries (with `choice.description` as a subtitle where available) plus **Launch** and **Cancel** buttons. Dismisses with `choice.value` on Launch or `None` on Cancel/Escape. Never imports engine modules; the caller resolves the value.
 - `app_list.py`:
-  - `class AppListScreen(Screen)` — constructor `(registry: Registry, pm: ProcessManager, repo_root: Path)`. A `DataTable` (or `ListView`) row per app: icon+name, stack, prereq summary, status. Bindings/buttons: **Launch** (run prepare if needed, then `pm.launch`), **Stop** (enabled only if `app.stoppable`), **Config** (`push_screen(ConfigScreen(...))`, only if `app.config_file`), **Refresh** status. Show prereq failures inline (don't launch if a hard prereq fails).
+  - `class AppListScreen(Screen)` — constructor `(registry: Registry, pm: ProcessManager, repo_root: Path)`. A `DataTable` (or `ListView`) row per app: icon+name, stack, prereq summary, status. Bindings/buttons: **Launch** (run prepare if needed, then `pm.launch`), **Stop** (enabled only if `app.stoppable`), **Config** (`push_screen(ConfigScreen(...))`, only if `app.config_file`), **Refresh** status. Show prereq failures inline (don't launch if a hard prereq fails). When `app.launch.arg_picker` is set, Launch first calls `arg_picker.discover_choices(repo_root, app)`, pushes `ArgPickerScreen`, and — if a non-`None` value is returned — calls `pm.launch(repo_root, app, extra_args=[value])`.
 - `config_screen.py`:
   - `class ConfigScreen(Screen)` — constructor `(app: App, repo_root: Path)`. On mount: `load_values`, `descriptors_for`, build a form (text/secret/string-list/file-path widgets). **Save** validates then `save_values`; show errors inline. For `credentials.json` offer an "Import…" path `Input` that loads a Google JSON and fills fields. `token.json` is not edited here.
 - `app.py`:

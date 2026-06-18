@@ -9,9 +9,10 @@ from textual.containers import Horizontal, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Label, Static
 
-from microapps_launcher import prepare, prerequisites
+from microapps_launcher import arg_picker, prepare, prerequisites
 from microapps_launcher.models import App, Registry
 from microapps_launcher.process_manager import ProcessManager
+from microapps_launcher.tui.arg_picker_screen import ArgPickerScreen
 from microapps_launcher.tui.widgets import StatusBadge
 
 try:
@@ -88,29 +89,56 @@ class AppListScreen(Screen):
             self.notify(f"Cannot launch {app.name} — {detail}",
                         severity="error", timeout=8)
             return
+        if app.launch.arg_picker is not None:
+            self._pick_then_launch(app)
+        else:
+            self._continue_launch(app, [])
+
+    def _pick_then_launch(self, app: App) -> None:
+        """Let the user choose a launch-time argument, then continue."""
+        choices = arg_picker.discover_choices(self._ma_root, app)
+        if not choices:
+            self.notify(
+                f"No options found for {app.name} "
+                f"(looked for {app.launch.arg_picker.glob} in {app.cwd}).",
+                severity="error", timeout=8,
+            )
+            return
+
+        def _picked(value: str | None) -> None:
+            if value is not None:
+                self._continue_launch(app, [value])
+
+        self.app.push_screen(
+            ArgPickerScreen(app.launch.arg_picker.label, choices), _picked
+        )
+
+    def _continue_launch(self, app: App, extra_args: list[str]) -> None:
         if prepare.needs_prepare(self._ma_root, app):
             self.notify(f"Preparing {app.name} (first run, this can take a minute)…")
-            self._prepare_then_launch(app)
+            self._prepare_then_launch(app, extra_args)
         else:
-            self._do_launch(app)
+            self._do_launch(app, extra_args)
 
     @work(thread=True)
-    def _prepare_then_launch(self, app: App) -> None:
+    def _prepare_then_launch(self, app: App, extra_args: list[str]) -> None:
         output: list[str] = []
         code = prepare.run_prepare(self._ma_root, app, on_line=output.append)
-        self.app.call_from_thread(self._after_prepare, app, code, output)
+        self.app.call_from_thread(self._after_prepare, app, code, output, extra_args)
 
-    def _after_prepare(self, app: App, code: int, output: list[str]) -> None:
+    def _after_prepare(
+        self, app: App, code: int, output: list[str], extra_args: list[str]
+    ) -> None:
         if code != 0:
             tail = " ⏎ ".join(line for line in output[-3:] if line.strip()) or "no output"
             self.notify(f"Prepare failed for {app.name} (exit {code}): {tail}",
                         severity="error", timeout=12)
             return
-        self._do_launch(app)
+        self._do_launch(app, extra_args)
 
-    def _do_launch(self, app: App) -> None:
+    def _do_launch(self, app: App, extra_args: list[str]) -> None:
         try:
-            self._ma_pm.launch(self._ma_root, app)
+            self._ma_pm.launch(self._ma_root, app, extra_args)
         except OSError as exc:
             self.notify(f"Launch failed: {exc}", severity="error", timeout=8)
             return

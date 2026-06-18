@@ -76,6 +76,17 @@
               "minItems": 1,
               "items": { "type": "string" },
               "description": "argv. cmd[0] resolves relative to cwd (or PATH); literal 'python' is substituted with the launcher interpreter (sys.executable) at runtime."
+            },
+            "argPicker": {
+              "type": "object",
+              "description": "Optional launch-time argument chosen by the user. The launcher lists the files matched by 'glob' (relative to cwd) and 'userGlob' (user files outside the repo), then appends the chosen file's path to cmd.",
+              "required": ["glob"],
+              "additionalProperties": false,
+              "properties": {
+                "label": { "type": "string", "minLength": 1, "description": "Prompt shown above the picker. Defaults to 'Choose an option'." },
+                "glob": { "type": "string", "minLength": 1, "description": "Glob of files to choose from, relative to cwd (forward slashes), e.g. 'examples/*.toml'. Matches are passed as a cwd-relative path." },
+                "userGlob": { "type": "string", "minLength": 1, "description": "Optional additional glob for user-provided files outside the repo; supports ~ and environment-variable expansion and is matched against the filesystem directly (not cwd-relative). Matches are passed as an absolute path. E.g. '~/.config/claude-panes/layouts/*.toml'." }
+              }
             }
           }
         },

@@ -60,7 +60,8 @@
       "cwd": "ClaudePanes",
       "prepare": null,
       "launch": {
-        "cmd": ["python", "claude_panes.py", "start"]
+        "cmd": ["python", "claude_panes.py", "start"],
+        "argPicker": { "label": "Choose a ClaudePanes layout", "glob": "examples/*.toml", "userGlob": "~/.config/claude-panes/layouts/*.toml" }
       },
       "launchMode": "fire-and-forget",
       "stoppable": false,

@@ -26,14 +26,43 @@ class Prepare:
 
 
 @dataclass(frozen=True)
+class ArgPicker:
+    """A launch-time argument the user picks from a set of files.
+
+    Before launch the UI offers the files matched by ``glob`` (relative to the
+    app's ``cwd``) and, optionally, ``user_glob`` (an absolute / ``~``-expanded
+    glob for user files outside the repo), then appends the chosen file's path
+    to ``cmd``.
+    """
+
+    glob: str
+    label: str = "Choose an option"
+    user_glob: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict | None) -> "ArgPicker | None":
+        if not data:
+            return None
+        return cls(
+            glob=data["glob"],
+            label=data.get("label", "Choose an option"),
+            user_glob=data.get("userGlob"),
+        )
+
+
+@dataclass(frozen=True)
 class Launch:
     """The command used to start an app."""
 
     cmd: tuple[str, ...]
+    arg_picker: ArgPicker | None = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "Launch":
-        return cls(cmd=tuple(data["cmd"]))
+        return cls(
+            cmd=tuple(data["cmd"]),
+            arg_picker=ArgPicker.from_dict(data.get("argPicker")),
+        )
 
 
 @dataclass(frozen=True)

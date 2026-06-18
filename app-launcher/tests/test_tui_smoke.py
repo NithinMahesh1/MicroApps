@@ -20,11 +20,20 @@ from microapps_launcher.process_manager import ProcessManager
 
 
 def _scenario() -> None:
+    from microapps_launcher import arg_picker
     from microapps_launcher.tui.app import MicroAppsLauncher
+    from microapps_launcher.tui.arg_picker_screen import ArgPickerScreen
     from microapps_launcher.tui.config_screen import ConfigScreen
 
     root = paths.find_repo_root(Path(__file__).resolve().parent)
     registry = load_registry(root)
+
+    # An app that declares a launch-time argument picker (ClaudePanes layouts).
+    picker_app = next(a for a in registry.apps if a.launch.arg_picker is not None)
+    choices = arg_picker.discover_choices(root, picker_app)
+    assert choices, "expected the arg-picker app to discover at least one file"
+    values = {c.value for c in choices}
+    assert any(v.endswith("solo-claude.toml") for v in values), values
 
     async def run() -> None:
         app = MicroAppsLauncher(registry, ProcessManager(), root)
@@ -35,6 +44,22 @@ def _scenario() -> None:
             app.push_screen(ConfigScreen(target, root))
             await pilot.pause()
             assert app.screen.__class__.__name__ == "ConfigScreen"
+            app.pop_screen()
+            await pilot.pause()
+
+            # Exercise the layout picker modal in isolation (no real launch):
+            # push it with a capturing callback and select the highlighted row.
+            picked: list[str | None] = []
+            app.push_screen(
+                ArgPickerScreen(picker_app.launch.arg_picker.label, choices),
+                picked.append,
+            )
+            await pilot.pause()
+            assert app.screen.__class__.__name__ == "ArgPickerScreen"
+            await pilot.press("enter")
+            await pilot.pause()
+            assert picked and picked[0] in values, picked
+            assert app.screen.__class__.__name__ == "AppListScreen"
 
     asyncio.run(run())
 
