@@ -1,0 +1,4 @@
+# ClaudeBench local artifacts — never commit
+snapshots/
+__pycache__/
+*.pyc

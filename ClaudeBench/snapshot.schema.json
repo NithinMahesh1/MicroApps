@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "empiricalResult": {
+      "type": "object",
+      "title": "Empirical Result",
+      "description": "Token-count statistics gathered by running the bench command across multiple live API calls.",
+      "required": ["runs", "input_mean", "output_mean", "input_min", "input_max", "output_min", "output_max", "budget_spent"],
+      "additionalProperties": false,
+      "properties": {
+        "runs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of bench runs that produced these statistics."
+        },
+        "input_mean": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Mean input token count across all runs."
+        },
+        "output_mean": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Mean output token count across all runs."
+        },
+        "input_min": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minimum input token count observed across all runs."
+        },
+        "input_max": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum input token count observed across all runs."
+        },
+        "output_min": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minimum output token count observed across all runs."
+        },
+        "output_max": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum output token count observed across all runs."
+        },
+        "budget_spent": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total input tokens consumed across all runs (sum of per-run input counts)."
+        }
+      }
+    }
+  },
+  "title": "ClaudeBench Snapshot",
+  "description": "Schema for a snapshot file produced by `python claude_bench.py snapshot`. Records the token footprint of every Claude Code component in a config directory at a point in time.",
+  "type": "object",
+  "required": ["taken_at", "config_dir", "model", "tokenizer", "totals", "components"],
+  "additionalProperties": false,
+  "properties": {
+    "taken_at": {
+      "type": "string",
+      "description": "ISO-8601 timestamp at which the snapshot was taken (e.g. 2026-06-18T10:30:00Z)."
+    },
+    "label": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "null" }
+      ],
+      "description": "Optional human-readable label for this snapshot; null when omitted."
+    },
+    "config_dir": {
+      "type": "string",
+      "description": "Absolute path to the scanned Claude config directory (e.g. ~/.claude resolved to a real path)."
+    },
+    "model": {
+      "type": "string",
+      "description": "Model identifier whose tokenizer was used to count tokens (e.g. claude-opus-4-8)."
+    },
+    "tokenizer": {
+      "type": "string",
+      "enum": ["count_tokens", "claude-p-fallback"],
+      "description": "Tokenizer strategy used: 'count_tokens' = live API call; 'claude-p-fallback' = cl100k_base character heuristic."
+    },
+    "totals": {
+      "type": "object",
+      "description": "Aggregate token counts across all components in the snapshot.",
+      "required": ["always_loaded", "invocation", "by_kind"],
+      "additionalProperties": false,
+      "properties": {
+        "always_loaded": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sum of tokens_always_loaded over all components."
+        },
+        "invocation": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sum of tokens_invocation over all components (null values treated as 0)."
+        },
+        "by_kind": {
+          "type": "object",
+          "description": "Breakdown of always_loaded token sums grouped by component kind.",
+          "required": ["skill", "agent", "mcp", "memory", "rule", "setting"],
+          "additionalProperties": false,
+          "properties": {
+            "skill": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Sum of always_loaded tokens for all skill components."
+            },
+            "agent": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Sum of always_loaded tokens for all agent components."
+            },
+            "mcp": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Sum of always_loaded tokens for all MCP components."
+            },
+            "memory": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Sum of always_loaded tokens for all memory components."
+            },
+            "rule": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Sum of always_loaded tokens for all rule components."
+            },
+            "setting": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Sum of always_loaded tokens for all setting components."
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "description": "List of individual Claude Code components discovered and measured in the config directory.",
+      "items": {
+        "type": "object",
+        "required": ["kind", "id", "name", "path", "content_hash", "tokens_always_loaded", "tokens_invocation", "empirical"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["skill", "agent", "mcp", "memory", "rule", "setting"],
+            "description": "Category of the component."
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Slug identifier for the component (e.g. 'commit-message')."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable display name for the component (e.g. 'Commit Message')."
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to the component's source file, relative to config_dir, using forward slashes."
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]+$",
+            "description": "SHA-256 hex digest of the component's source content, prefixed with 'sha256:'."
+          },
+          "tokens_always_loaded": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of tokens from this component that are always present in the model context."
+          },
+          "tokens_invocation": {
+            "oneOf": [
+              { "type": "integer", "minimum": 0 },
+              { "type": "null" }
+            ],
+            "description": "Number of tokens loaded only when the component is invoked; null if not applicable or unmeasured."
+          },
+          "empirical": {
+            "oneOf": [
+              { "$ref": "#/$defs/empiricalResult" },
+              { "type": "null" }
+            ],
+            "description": "Live-API bench statistics for this component, or null if bench has not been run."
+          }
+        }
+      }
+    }
+  }
+}
