@@ -1,6 +1,7 @@
 """Config tab — a searchable table of ~/.claude components (from scan.build_view_model)."""
 from __future__ import annotations
 
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import DataTable, Input, Static
@@ -43,6 +44,20 @@ class ConfigView(Vertical):
                 str(always) if always is not None else "—",
                 str(invoke) if invoke is not None else "—",
             )
+
+    def focus_search(self) -> None:
+        """Put keyboard focus on the search box (the tab's entry point)."""
+        self.query_one("#config-search", Input).focus()
+
+    def on_key(self, event: events.Key) -> None:
+        # Down-arrow from the search box drops focus into the results table.
+        if event.key != "down" or self.app.focused is not self.query_one("#config-search", Input):
+            return
+        table = self.query_one("#config-table", DataTable)
+        if table.row_count:
+            table.focus()
+            event.stop()
+            event.prevent_default()
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id != "config-search":

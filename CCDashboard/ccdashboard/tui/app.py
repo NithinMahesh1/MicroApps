@@ -38,6 +38,7 @@ class CCDashboardApp(App):
         Binding("ctrl+r", "refresh", "Refresh"),
         Binding("1", "show('config')", "Config"),
         Binding("2", "show('conversations')", "Conversations"),
+        Binding("slash", "search", "Search"),
     ]
 
     def __init__(self, config_dir: Path) -> None:
@@ -68,6 +69,7 @@ class CCDashboardApp(App):
     def _populate(self, vm: dict, convos: list) -> None:
         self.query_one(ConfigView).load_items(vm)
         self.query_one(ConversationsView).load_conversations(convos)
+        self._ccd_active_view().focus_search()
 
     def action_show(self, tab: str) -> None:
         self.query_one("#tabs", TabbedContent).active = tab
@@ -75,6 +77,19 @@ class CCDashboardApp(App):
     def action_refresh(self) -> None:
         self.notify("Refreshing…")
         self._load()
+
+    def action_search(self) -> None:
+        """Focus the active tab's search box (also bound to ``/``)."""
+        self._ccd_active_view().focus_search()
+
+    def _ccd_active_view(self):
+        """Return the ConfigView or ConversationsView in the active tab."""
+        active = self.query_one("#tabs", TabbedContent).active
+        return self.query_one(ConfigView if active == "config" else ConversationsView)
+
+    def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        # Landing on a tab should drop focus into its content, not the tab bar.
+        self._ccd_active_view().focus_search()
 
 
 def run(config_dir: Path) -> None:

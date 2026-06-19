@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from textual import work
+from textual import events, work
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import DataTable, Input, Static
@@ -21,7 +21,7 @@ class ConversationsView(Vertical):
 
     def compose(self) -> ComposeResult:
         yield Input(
-            placeholder="search conversations…  (↑/↓ then Enter to resume as admin)",
+            placeholder="search conversations…  (↓ to results, Enter to resume as admin)",
             id="conv-search",
         )
         yield DataTable(id="conv-table", zebra_stripes=True, cursor_type="row")
@@ -65,6 +65,20 @@ class ConversationsView(Vertical):
         self.query_one("#conv-status", Static).update(
             f"{len(matched)} match" + ("" if len(matched) == 1 else "es") + f" for “{query}”"
         )
+
+    def focus_search(self) -> None:
+        """Put keyboard focus on the search box (the tab's entry point)."""
+        self.query_one("#conv-search", Input).focus()
+
+    def on_key(self, event: events.Key) -> None:
+        # Down-arrow from the search box drops focus into the results table.
+        if event.key != "down" or self.app.focused is not self.query_one("#conv-search", Input):
+            return
+        table = self.query_one("#conv-table", DataTable)
+        if table.row_count:
+            table.focus()
+            event.stop()
+            event.prevent_default()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         if event.data_table.id != "conv-table":
