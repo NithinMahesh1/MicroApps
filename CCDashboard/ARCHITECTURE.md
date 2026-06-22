@@ -23,12 +23,15 @@ CCDashboard/
                            / launch_resume() over ~/.claude/projects/**/*.jsonl.
     quiz.py                load_cards() (split notes into SM-2 cards) / review() +
                            selection / gen_question() + grade_answer() (Claude).
+    editor.py              open_in_editor(path) — open a config file in VS Code (CLI)
+                           or the OS default; used by the Config tab's Enter action.
     tui/
       __init__.py
       app.py               CCDashboardApp (Textual App): Header, pyfiglet banner,
                            TabbedContent[Config, Conversations, QuizMe], Footer; loads
                            data in a background (@work thread) worker on mount.
-      config_view.py       ConfigView — search Input + DataTable of components.
+      config_view.py       ConfigView — search Input + DataTable of components;
+                           row-select -> editor.open_in_editor(item abs_path).
       conversations_view.py  ConversationsView — search Input + DataTable; row-select
                            -> launch_resume (clipboard + Start-menu admin launch).
       quiz_view.py         QuizView — question Static + answer TextArea + Submit;

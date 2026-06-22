@@ -282,6 +282,7 @@ def build_view_model(config_dir: Path) -> dict[str, Any]:
             "name": name,
             "description": description,
             "path": rel_posix,
+            "abs_path": str(abs_path),
             "size_bytes": size_bytes,
             "modified": modified,
             "preview": preview,

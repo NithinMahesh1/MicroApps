@@ -5,7 +5,7 @@ A futuristic **terminal (TUI)** console for your global Claude Code setup
 
 - **Config** — searchable inventory of your skills, agents, memory (`CLAUDE.md`),
   rules, and settings. Shows per-item token costs when a ClaudeBench `count_tokens`
-  snapshot exists.
+  snapshot exists. Press **Enter** on a row to open that file in **VS Code**.
 - **Conversations** — fast full-text search across all your past Claude Code chats
   (`~/.claude/projects/**/*.jsonl`). Press **Enter** on a result to resume it: the
   resume command is copied to your clipboard and your own admin terminal opens
@@ -57,6 +57,7 @@ python cc_dashboard.py --config-dir <path>   # scan a different config dir
 | `/` | jump to the search box |
 | `↓` | drop from the search box into the results table |
 | `↑` / `↓` | move the row cursor |
+| `Enter` | (Config) open the selected component's file in VS Code |
 | `Enter` | (Conversations) resume the selected chat — opens your admin terminal; paste with Ctrl+V |
 | `ctrl+s` | (QuizMe) submit your answer |
 | `ctrl+r` | refresh (re-scan config + re-index conversations) |

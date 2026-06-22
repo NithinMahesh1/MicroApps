@@ -1,10 +1,12 @@
 """Config tab — a searchable table of ~/.claude components (from scan.build_view_model)."""
 from __future__ import annotations
 
-from textual import events
+from textual import events, work
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import DataTable, Input, Static
+
+from ccdashboard import editor
 
 
 class ConfigView(Vertical):
@@ -13,9 +15,13 @@ class ConfigView(Vertical):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._ccd_items: list[dict] = []
+        self._ccd_rows: list[dict] = []   # items currently shown (parallel to table rows)
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="search config…", id="config-search")
+        yield Input(
+            placeholder="search config…  (↓ then Enter to open the file in VS Code)",
+            id="config-search",
+        )
         yield DataTable(id="config-table", zebra_stripes=True, cursor_type="row")
         yield Static("loading…", id="config-status", classes="status")
 
@@ -34,6 +40,7 @@ class ConfigView(Vertical):
     def _ccd_render(self, items: list[dict]) -> None:
         table = self.query_one("#config-table", DataTable)
         table.clear()
+        self._ccd_rows = list(items)
         for it in items:
             always = it.get("tokens_always_loaded")
             invoke = it.get("tokens_invocation")
@@ -74,3 +81,32 @@ class ConfigView(Vertical):
             ).lower()
         ]
         self._ccd_render(matched)
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        # Enter (or click) on a row opens that component's source file in an editor.
+        if event.data_table.id != "config-table":
+            return
+        idx = event.cursor_row
+        if 0 <= idx < len(self._ccd_rows):
+            self._ccd_open(self._ccd_rows[idx])
+
+    @work(thread=True)
+    def _ccd_open(self, item: dict) -> None:
+        name = item.get("name") or item.get("id") or "item"
+        path = item.get("abs_path")
+        if not path:
+            self.app.call_from_thread(
+                self.app.notify, f"No file on disk for “{name}”.",
+                severity="warning", timeout=6,
+            )
+            return
+        try:
+            plan = editor.open_in_editor(path)
+            where = "VS Code" if plan["editor"] == "vscode" else "the default editor"
+            self.app.call_from_thread(
+                self.app.notify, f"Opened “{name}” in {where}.", timeout=5
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.app.call_from_thread(
+                self.app.notify, f"Open failed: {exc}", severity="error", timeout=8
+            )
