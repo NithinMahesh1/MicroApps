@@ -57,6 +57,10 @@ class AppListScreen(Screen):
 
     def on_mount(self) -> None:
         self._refresh_statuses()
+        # Poll process liveness so an app you close yourself flips to "stopped"
+        # without needing a manual refresh (the bug was: status only updated on
+        # mount / launch / stop / pressing "r").
+        self.set_interval(1.5, self._refresh_statuses)
 
     def action_refresh(self) -> None:
         self._refresh_statuses()
