@@ -4,3 +4,4 @@
 textual==8.2.7
 rich==14.3.3
 pyfiglet==1.0.4
+anthropic==0.109.2

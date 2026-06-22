@@ -9,23 +9,25 @@ event carrying ``cwd``, ``gitBranch``, ``sessionId``, ``timestamp``, an
 This module:
   * ``index_conversations()`` — scan all transcripts into ``Conversation`` records.
   * ``search()``               — full-text keyword search with snippets.
-  * ``launch_resume()``        — open an ELEVATED Windows PowerShell that cd's to
-                                 the conversation's working dir and runs
-                                 ``claude --resume <session-id>``.
+  * ``launch_resume()``        — replay the user's own Start-menu launch (Win ->
+                                 type "powershell" -> Ctrl+Shift+Enter) to open
+                                 THEIR elevated terminal, with the resume command
+                                 (``cd <cwd>; claude --resume <id>``, claude by its
+                                 FULL path) placed on the clipboard to paste.
 
 Security: ``launch_resume`` only ever resumes a ``session_id`` that exists in the
 index, takes the working directory from the (trusted) transcript — never from the
-caller — and validates the id against a strict pattern. The elevated command runs
-from a generated ``.ps1`` so there is no shell-string interpolation of untrusted
-input.
+caller — and validates the id against a strict pattern. The clipboard command
+single-quote-escapes the cwd and the claude path for a PowerShell literal; we never
+spawn a shell ourselves (the user pastes), and Windows UIPI is why the command is
+delivered via the clipboard rather than typed into the elevated window.
 """
 from __future__ import annotations
 
 import json
 import re
-import subprocess
+import shutil
 import sys
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -46,7 +48,8 @@ class Conversation:
     message_count: int
     project_dir: str
     file_path: str
-    text: str = ""  # concatenated message text, for search (not serialized to clients)
+    text: str = ""  # concatenated message text (original case), for snippets (not serialized)
+    search_blob: str = ""  # (title + "\n" + text).lower(), precomputed once at index time
 
     def to_dict(self, *, include_text: bool = False) -> dict:
         data = {
@@ -155,6 +158,7 @@ def _parse_session(path: Path) -> Conversation | None:
     if not cwd:
         cwd = _decode_project_dir(path.parent.name)
 
+    body_text = "\n".join(text_parts)
     return Conversation(
         session_id=session_id,
         cwd=cwd,
@@ -165,7 +169,8 @@ def _parse_session(path: Path) -> Conversation | None:
         message_count=msg_count,
         project_dir=path.parent.name,
         file_path=str(path),
-        text="\n".join(text_parts),
+        text=body_text,
+        search_blob=(title + "\n" + body_text).lower(),
     )
 
 
@@ -215,40 +220,156 @@ def _snippet(text: str, terms: list[str], width: int = 160) -> str:
 def search(conversations: list[Conversation], query: str) -> list[dict]:
     """Full-text search: every term must appear in the title or body (AND).
 
-    Returns result dicts (conversation metadata + a ``snippet``), newest first.
-    An empty query returns all conversations (no snippet).
+    Matching uses each conversation's precomputed lowercased ``search_blob``
+    (``title`` + body, built once at index time) so no up-to-500k-char string is
+    re-lowercased per call. Returns result dicts (conversation metadata + a
+    ``snippet``), newest first. An empty query returns all conversations.
     """
     terms = [t for t in query.lower().split() if t]
     results: list[dict] = []
     for convo in conversations:
-        if terms:
-            haystack = (convo.title + "\n" + convo.text).lower()
-            if not all(term in haystack for term in terms):
-                continue
+        if terms and not all(term in convo.search_blob for term in terms):
+            continue
         item = convo.to_dict()
         item["snippet"] = _snippet(convo.text, terms) if terms else ""
         results.append(item)
     return results
 
 
-def _build_ps1(cwd: str, session_id: str) -> str:
-    """Generate the PowerShell script the elevated window runs."""
-    cwd_lit = cwd.replace("'", "''")  # escape single quotes for a PS literal
-    return (
-        "$Host.UI.RawUI.WindowTitle = 'Claude — resume'\n"
-        f"Set-Location -LiteralPath '{cwd_lit}'\n"
-        f"claude --resume {session_id}\n"
-    )
+def filter_conversations(
+    conversations: list[Conversation], query: str
+) -> list[Conversation]:
+    """Return the Conversation objects matching ``query`` (AND over terms).
+
+    Uses each conversation's precomputed lowercased ``search_blob`` and skips snippet
+    building, so it is much cheaper than :func:`search` for callers (the TUI) that
+    render the records directly and never show snippets. Order is preserved (the
+    index is already newest-first); an empty query returns all conversations.
+    """
+    terms = [t for t in query.lower().split() if t]
+    if not terms:
+        return list(conversations)
+    return [c for c in conversations if all(term in c.search_blob for term in terms)]
+
+
+def _build_resume_command(cwd: str, claude_exe: str, session_id: str) -> str:
+    """The one-line PowerShell command that resumes the conversation.
+
+    Placed on the clipboard for the user to paste into the elevated window (Windows
+    UIPI forbids us from typing into a higher-integrity window). The working dir and
+    claude's FULL path are baked in so it runs even though an *elevated* shell's PATH
+    omits the per-user install dir (``~/.local/bin``) where ``claude`` lives. ``cwd``
+    and the exe path are single-quote escaped for a PowerShell literal; ``session_id``
+    is already validated against ``_SESSION_ID_RE`` (no spaces or quotes).
+    """
+    cwd_lit = cwd.replace("'", "''")
+    exe_lit = claude_exe.replace("'", "''")
+    return f"Set-Location -LiteralPath '{cwd_lit}'; & '{exe_lit}' --resume {session_id}"
+
+
+def _claude_exe() -> str:
+    """Full path to the claude CLI resolved in THIS (non-elevated) process, or bare
+    ``claude`` as a last resort. The absolute path is what lets the command succeed
+    in an elevated shell whose PATH lacks the per-user install dir."""
+    return shutil.which("claude") or "claude"
+
+
+def _set_clipboard(text: str) -> None:
+    """Put ``text`` on the Windows clipboard as CF_UNICODETEXT (stdlib ctypes only)."""
+    import ctypes
+    from ctypes import wintypes
+
+    cf_unicodetext = 13
+    gmem_moveable = 0x0002
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
+    kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+    kernel32.GlobalLock.restype = wintypes.LPVOID
+    kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+    kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+    user32.OpenClipboard.argtypes = [wintypes.HWND]
+    user32.SetClipboardData.restype = wintypes.HANDLE
+    user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
+
+    buf = text.encode("utf-16-le") + b"\x00\x00"
+    if not user32.OpenClipboard(None):
+        raise OSError("could not open the Windows clipboard")
+    try:
+        user32.EmptyClipboard()
+        handle = kernel32.GlobalAlloc(gmem_moveable, len(buf))
+        if not handle:
+            raise OSError("clipboard GlobalAlloc failed")
+        ptr = kernel32.GlobalLock(handle)
+        ctypes.memmove(ptr, buf, len(buf))
+        kernel32.GlobalUnlock(handle)
+        if not user32.SetClipboardData(cf_unicodetext, handle):
+            raise OSError("clipboard SetClipboardData failed")
+        # Ownership of `handle` passes to the clipboard; do not free it.
+    finally:
+        user32.CloseClipboard()
+
+
+# Start-menu launch timing. Generous so search results resolve before
+# Ctrl+Shift+Enter fires; bump these if your machine is slower.
+_WIN_OPEN_DELAY = 0.6   # after the Win tap, wait for Start to open
+_TYPE_DELAY = 0.03      # between typed characters
+_RESULTS_DELAY = 1.0    # after typing, wait for the top result to resolve
+_SEARCH_QUERY = "powershell"
+
+
+def _open_admin_terminal_via_search() -> None:
+    """Replay Win -> type "powershell" -> Ctrl+Shift+Enter (launch as admin).
+
+    Reproduces the user's own muscle-memory so the SAME terminal they normally get
+    from Start search opens. Synthetic input via ``keybd_event`` reaches the
+    non-elevated Start menu fine; once the *elevated* window appears Windows UIPI
+    blocks further injected input into it, which is why the resume command is
+    delivered through the clipboard (paste) rather than typed.
+    """
+    import ctypes
+    import time
+
+    user32 = ctypes.windll.user32
+    vk_lwin, vk_ctrl, vk_shift, vk_return = 0x5B, 0x11, 0x10, 0x0D
+    keyup = 0x0002
+
+    def down(vk: int) -> None:
+        user32.keybd_event(vk, 0, 0, 0)
+
+    def up(vk: int) -> None:
+        user32.keybd_event(vk, 0, keyup, 0)
+
+    def tap(vk: int) -> None:
+        down(vk)
+        up(vk)
+
+    tap(vk_lwin)
+    time.sleep(_WIN_OPEN_DELAY)
+    for ch in _SEARCH_QUERY:
+        tap(user32.VkKeyScanW(ord(ch)) & 0xFF)
+        time.sleep(_TYPE_DELAY)
+    time.sleep(_RESULTS_DELAY)
+    down(vk_ctrl)
+    time.sleep(0.03)
+    down(vk_shift)
+    time.sleep(0.03)
+    tap(vk_return)  # Ctrl+Shift+Enter -> run the top result as Administrator
+    time.sleep(0.03)
+    up(vk_shift)
+    up(vk_ctrl)
 
 
 def build_resume_plan(convo: Conversation) -> dict:
-    """Build (without running) the elevated-resume plan for inspection/dry-run."""
+    """Build (without running) the resume plan for inspection/dry-run."""
     if not _SESSION_ID_RE.match(convo.session_id):
         raise ValueError(f"refusing to resume — invalid session id: {convo.session_id!r}")
+    claude_exe = _claude_exe()
     return {
         "session_id": convo.session_id,
         "cwd": convo.cwd,
-        "ps1": _build_ps1(convo.cwd, convo.session_id),
+        "claude_exe": claude_exe,
+        "command": _build_resume_command(convo.cwd, claude_exe, convo.session_id),
     }
 
 
@@ -258,11 +379,14 @@ def launch_resume(
     *,
     dry_run: bool = False,
 ) -> dict:
-    """Open an elevated PowerShell that resumes ``session_id`` in its working dir.
+    """Resume ``session_id`` in the user's own admin terminal via Start-menu search.
 
-    The id must exist in ``conversations``; the working dir is taken from that
-    record (never the caller). With ``dry_run=True`` the command is returned but
-    nothing is spawned (used for tests, so no UAC prompt fires).
+    Copies ``cd <cwd>; claude --resume <id>`` (claude by full path) to the clipboard,
+    then replays Win -> type "powershell" -> Ctrl+Shift+Enter so the SAME elevated
+    terminal the user normally uses opens; they finish with Ctrl+V + Enter. The id
+    must exist in ``conversations`` and the working dir comes from that record (never
+    the caller). With ``dry_run=True`` nothing is copied or typed — the plan is just
+    returned (so tests fire no keystrokes and no UAC prompt).
     """
     convo = next((c for c in conversations if c.session_id == session_id), None)
     if convo is None:
@@ -270,22 +394,20 @@ def launch_resume(
     if not _SESSION_ID_RE.match(session_id):
         raise ValueError(f"invalid session id: {session_id!r}")
 
-    ps1 = _build_ps1(convo.cwd, convo.session_id)
-    tmp = Path(tempfile.gettempdir()) / f"ccchats-resume-{session_id}.ps1"
-    # Outer (non-elevated) command: Start-Process elevates a new PowerShell that
-    # runs the generated script file. -File avoids any inline-command quoting.
-    outer = (
-        "Start-Process -FilePath powershell -Verb RunAs -ArgumentList "
-        f"'-NoExit','-NoProfile','-ExecutionPolicy','Bypass','-File','{str(tmp)}'"
-    )
-    argv = ["powershell", "-NoProfile", "-Command", outer]
-
+    claude_exe = _claude_exe()
+    command = _build_resume_command(convo.cwd, claude_exe, session_id)
+    plan = {
+        "session_id": session_id,
+        "cwd": convo.cwd,
+        "claude_exe": claude_exe,
+        "command": command,
+    }
     if dry_run:
-        return {"session_id": session_id, "cwd": convo.cwd, "ps1_path": str(tmp), "argv": argv, "ps1": ps1}
+        return plan
 
-    tmp.write_text(ps1, encoding="utf-8")
-    subprocess.Popen(argv)  # fires the UAC prompt; the elevated window then resumes
-    return {"session_id": session_id, "cwd": convo.cwd, "ps1_path": str(tmp), "argv": argv}
+    _set_clipboard(command)
+    _open_admin_terminal_via_search()
+    return plan
 
 
 if __name__ == "__main__":  # built-in smoke test (no elevation; dry-run only)
@@ -305,5 +427,5 @@ if __name__ == "__main__":  # built-in smoke test (no elevation; dry-run only)
               f"{(hits[0]['title'][:50] + ' :: ' + hits[0]['snippet'][:60]) if hits else '—'}")
         plan = launch_resume(idx[0].session_id, idx, dry_run=True)
         print(f"\ndry-run resume of newest ({idx[0].session_id[:12]}…):")
-        print("  argv:", plan["argv"])
-        print("  ps1 :", plan["ps1"].replace(chr(10), " | "))
+        print("  claude :", plan["claude_exe"])
+        print("  command:", plan["command"])

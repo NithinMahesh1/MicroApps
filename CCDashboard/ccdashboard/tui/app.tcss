@@ -81,3 +81,51 @@ DataTable > .datatable--odd-row {
     color: #7ab8cc;
     text-style: italic;
 }
+
+/* QuizMe tab */
+.quiz-question {
+    margin: 1 2;
+    padding: 1 2;
+    background: #0a1420;
+    color: #e8fbff;
+    border: round #19f0d4;
+    height: auto;
+    min-height: 5;
+}
+
+.quiz-answer {
+    margin: 0 2;
+    height: 8;
+    background: #070b12;
+    color: #e8fbff;
+    border: round #19f0d4;
+}
+
+.quiz-answer:focus {
+    border: round #00e5ff;
+}
+
+#quiz-submit {
+    margin: 1 2;
+    background: #0e3340;
+    color: #00e5ff;
+    border: round #00e5ff;
+    text-style: bold;
+}
+
+#quiz-submit:hover {
+    background: #00e5ff;
+    color: #05080d;
+}
+
+.quiz-feedback {
+    margin: 1 2;
+    padding: 0 2;
+    color: #19f0d4;
+    text-style: italic;
+    height: auto;
+}
+
+.quiz-feedback.feedback-error {
+    color: #ff7a7a;
+}

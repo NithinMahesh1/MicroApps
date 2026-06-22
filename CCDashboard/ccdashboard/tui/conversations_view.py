@@ -1,14 +1,20 @@
 """Conversations tab — search transcripts; Enter on a row resumes it (admin PowerShell)."""
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 
 from textual import events, work
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.timer import Timer
 from textual.widgets import DataTable, Input, Static
 
 from ccdashboard import conversations
+
+# No built-in debounce exists in Textual 8.2.x; we cancel-and-reschedule a one-shot
+# timer so a burst of keystrokes collapses into a single search. ~180 ms feels instant.
+_SEARCH_DEBOUNCE_SECONDS = 0.18
 
 
 class ConversationsView(Vertical):
@@ -18,6 +24,7 @@ class ConversationsView(Vertical):
         super().__init__(**kwargs)
         self._ccd_convos: list = []   # full index
         self._ccd_rows: list = []     # currently displayed (parallel to table rows)
+        self._ccd_search_timer: Timer | None = None  # pending debounced search, if any
 
     def compose(self) -> ComposeResult:
         yield Input(
@@ -54,15 +61,31 @@ class ConversationsView(Vertical):
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id != "conv-search":
             return
-        query = event.value.strip()
+        # Cancel any pending search and reschedule; only the last keystroke in a
+        # burst actually runs conversations.search. Timer.stop() is sync + idempotent.
+        if self._ccd_search_timer is not None:
+            self._ccd_search_timer.stop()
+        self._ccd_search_timer = self.set_timer(
+            _SEARCH_DEBOUNCE_SECONDS,
+            partial(self._ccd_run_search, event.value.strip()),
+            name="conv-search-debounce",
+        )
+
+    def _ccd_run_search(self, query: str) -> None:
+        """Deferred search body (runs on the UI thread after the debounce window).
+
+        Scheduled via ``set_timer`` so widget updates here are safe without
+        ``call_from_thread`` (that is only for ``@work(thread=True)`` workers).
+        """
+        self._ccd_search_timer = None  # this run consumes the pending timer
+        status = self.query_one("#conv-status", Static)
         if not query:
             self._ccd_render(self._ccd_convos)
-            self.query_one("#conv-status", Static).update(f"{len(self._ccd_convos)} conversations")
+            status.update(f"{len(self._ccd_convos)} conversations")
             return
-        ids = {r["session_id"] for r in conversations.search(self._ccd_convos, query)}
-        matched = [c for c in self._ccd_convos if c.session_id in ids]
+        matched = conversations.filter_conversations(self._ccd_convos, query)
         self._ccd_render(matched)
-        self.query_one("#conv-status", Static).update(
+        status.update(
             f"{len(matched)} match" + ("" if len(matched) == 1 else "es") + f" for “{query}”"
         )
 
@@ -89,13 +112,17 @@ class ConversationsView(Vertical):
 
     @work(thread=True)
     def _resume(self, convo) -> None:
+        title = (convo.title or "")[:34]
         try:
-            conversations.launch_resume(convo.session_id, self._ccd_convos)
+            # Notify first — once the Win key fires, Start (then the admin window)
+            # covers the TUI, so the paste reminder needs to be on screen already.
             self.app.call_from_thread(
                 self.app.notify,
-                f"Resuming “{convo.title[:40]}” — accept the UAC prompt.",
-                timeout=8,
+                f"Opening admin PowerShell for “{title}” — approve UAC, then press "
+                "Ctrl+V, Enter (the resume command is on your clipboard).",
+                timeout=12,
             )
+            conversations.launch_resume(convo.session_id, self._ccd_convos)
         except Exception as exc:  # noqa: BLE001
             self.app.call_from_thread(
                 self.app.notify, f"Resume failed: {exc}", severity="error", timeout=8
