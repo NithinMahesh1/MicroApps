@@ -89,7 +89,7 @@
         "cmd": ["python", "cc_dashboard.py"]
       },
       "launchMode": "console",
-      "stoppable": false,
+      "stoppable": true,
       "configFile": null,
       "configTemplate": null,
       "configSchema": null,
