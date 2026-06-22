@@ -116,13 +116,13 @@ AppLauncher/
 ## TUI (Textual) — `tui/*`
 Engine API the screens call: `manifest.load_registry`, `prerequisites.check_all`, `ProcessManager`, `prepare.needs_prepare/run_prepare`, `config.descriptors.descriptors_for`, `config.io.load_values/save_values`, `config.validation.validate`.
 - `widgets.py`:
-  - `class StatusBadge(Static)` — `update_status(status: str)` -> renders ● running (green) / ○ stopped (dim).
+  - `class StatusBadge(Static)` — `set_status(status: str)` -> renders ● running (green) / ○ stopped (dim).
   - `class SecretInput(Widget)` — wraps an `Input(password=True)` + a reveal toggle (`Button`/key) flipping `password`. `value` property.
   - `class StringListEditor(Widget)` — a list with Add/Remove/Up/Down for `list[str]`; `values: list[str]` property; seeded via constructor.
 - `arg_picker_screen.py`:
   - `class ArgPickerScreen(ModalScreen[str | None])` — constructed with `choices: list[ArgChoice]` and `label: str`. Renders an `OptionList` of `choice.label` entries (with `choice.description` as a subtitle where available) plus **Launch** and **Cancel** buttons. Dismisses with `choice.value` on Launch or `None` on Cancel/Escape. Never imports engine modules; the caller resolves the value.
 - `app_list.py`:
-  - `class AppListScreen(Screen)` — constructor `(registry: Registry, pm: ProcessManager, repo_root: Path)`. A `DataTable` (or `ListView`) row per app: icon+name, stack, prereq summary, status. Bindings/buttons: **Launch** (run prepare if needed, then `pm.launch`), **Stop** (enabled only if `app.stoppable`), **Config** (`push_screen(ConfigScreen(...))`, only if `app.config_file`), **Refresh** status. Show prereq failures inline (don't launch if a hard prereq fails). When `app.launch.arg_picker` is set, Launch first calls `arg_picker.discover_choices(repo_root, app)`, pushes `ArgPickerScreen`, and — if a non-`None` value is returned — calls `pm.launch(repo_root, app, extra_args=[value])`.
+  - `class AppListScreen(Screen)` — constructor `(registry: Registry, pm: ProcessManager, repo_root: Path)`. A `DataTable` (or `ListView`) row per app: icon+name, stack, prereq summary, status. Bindings/buttons: **Launch** (run prepare if needed, then `pm.launch`), **Stop** (enabled only if `app.stoppable`), **Config** (`push_screen(ConfigScreen(...))`, only if `app.config_file`), **Refresh** status (also auto-polled every ~1.5 s via `set_interval`, so an app you close yourself flips to *stopped* without pressing Refresh). Show prereq failures inline (don't launch if a hard prereq fails). When `app.launch.arg_picker` is set, Launch first calls `arg_picker.discover_choices(repo_root, app)`, pushes `ArgPickerScreen`, and — if a non-`None` value is returned — calls `pm.launch(repo_root, app, extra_args=[value])`.
 - `config_screen.py`:
   - `class ConfigScreen(Screen)` — constructor `(app: App, repo_root: Path)`. On mount: `load_values`, `descriptors_for`, build a form (text/secret/string-list/file-path widgets). **Save** validates then `save_values`; show errors inline. For `credentials.json` offer an "Import…" path `Input` that loads a Google JSON and fills fields. `token.json` is not edited here.
 - `app.py`:

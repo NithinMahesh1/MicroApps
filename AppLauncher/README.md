@@ -30,6 +30,7 @@ On Windows you can also double-click / run `launcher.bat` (it forwards args).
 - **Prerequisites** — verifies Python / .NET SDK / Windows Terminal etc. per app, with fix hints.
 - **Prepare (build-once)** — runs `pip install` / `dotnet build` only when needed (skipped once the sentinel exists, e.g. the built `.exe`).
 - **Launch modes** — `console` apps open their own terminal window; `gui` apps run as a window; `fire-and-forget` apps (ClaudePanes) are detached.
+- **Live status** — each app shows a running/stopped badge that **auto-refreshes** (polled every ~1.5 s), so an app you close yourself flips to *stopped* on its own; `Stop` terminates a tracked app when it's marked `stoppable`.
 - **Config editor** — edits each app's settings in the git-ignored `config/` folder (masked secrets; never writes templates). `Config` button per app.
 
 ## Adding a new app

@@ -10,6 +10,8 @@ configures and runs any of them from one place — regardless of stack.
 | [**MeetingTracker**](MeetingTracker/) | Python (`rich` TUI) | Live terminal dashboard of today's Google Calendar meetings — countdowns, alerts, one‑key join, and unread Gmail. |
 | [**MeetingNotesOverlay**](MeetingNotesOverlay/) | .NET 10 / WinUI 3 | Always‑on‑top notes overlay that is **invisible to screen sharing** (Teams/Slack/Zoom/Meet) via `WDA_EXCLUDEFROMCAPTURE`. |
 | [**ClaudePanes**](ClaudePanes/) | Python CLI | Opens multi‑pane Claude Code terminal layouts from a TOML file (Windows Terminal / WezTerm / tmux / Zellij). |
+| [**ClaudeBench**](ClaudeBench/) | Python CLI | Measures the token footprint of your `~/.claude` config (skills/agents/memory/rules) — free static `count_tokens` plus optional empirical runs; CLI + Markdown report. |
+| [**CCDashboard**](CCDashboard/) | Python (Textual TUI) | "Jarvis" console for your `~/.claude`: searchable config (Enter opens the file in VS Code), full‑text conversation search + resume, and a daily Claude‑graded **QuizMe**. |
 
 ## Launcher
 
@@ -42,9 +44,10 @@ use the launcher's **Config** button), and you're set — see
 ## Requirements
 
 - Windows 10 (build 19041+) / Windows 11
-- Python 3.11+ — MeetingTracker, ClaudePanes, the launcher
+- Python 3.11+ — MeetingTracker, ClaudePanes, ClaudeBench, CCDashboard, the launcher
 - .NET 10 SDK — MeetingNotesOverlay
 - A terminal multiplexer for ClaudePanes (e.g. Windows Terminal)
+- `ANTHROPIC_API_KEY` (optional) — enables CCDashboard's QuizMe and ClaudeBench's real `count_tokens` numbers
 
 ## Layout
 
@@ -55,4 +58,6 @@ config/                        git-ignored secrets/settings + committed template
 MeetingTracker/                Python calendar/Gmail TUI
 MeetingNotesOverlay/           .NET 10 WinUI 3 capture-proof overlay
 ClaudePanes/                   Python terminal-layout launcher
+ClaudeBench/                   Python ~/.claude token-footprint benchmarker (CLI + report)
+CCDashboard/                   Python Textual TUI for ~/.claude (config + conversations + QuizMe)
 ```
