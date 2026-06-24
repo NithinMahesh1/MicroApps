@@ -1,5 +1,5 @@
 """
-conversations.py — index, search, and resume Claude Code conversations.
+conversations.py — index and resume Claude Code conversations.
 
 Claude Code stores every conversation as a JSONL transcript under
 ``~/.claude/projects/<encoded-cwd>/<session-id>.jsonl``. Each line is a JSON
@@ -8,7 +8,6 @@ event carrying ``cwd``, ``gitBranch``, ``sessionId``, ``timestamp``, an
 
 This module:
   * ``index_conversations()`` — scan all transcripts into ``Conversation`` records.
-  * ``search()``               — full-text keyword search with snippets.
   * ``launch_resume()``        — replay the user's own Start-menu launch (Win ->
                                  type "powershell" -> Ctrl+Shift+Enter) to open
                                  THEIR elevated terminal, with the resume command
@@ -29,10 +28,11 @@ import re
 import shutil
 import sys
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
 
 _SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_MAX_TEXT_PER_CONVO = 500_000  # cap searchable text per conversation (chars)
+_MAX_TEXT_PER_CONVO = 1_000_000  # cap searchable text per conversation (chars)
 
 
 @dataclass(frozen=True)
@@ -49,7 +49,13 @@ class Conversation:
     project_dir: str
     file_path: str
     text: str = ""  # concatenated message text (original case), for snippets (not serialized)
-    search_blob: str = ""  # (title + "\n" + text).lower(), precomputed once at index time
+    # Precomputed search fields, built once at index time (not serialized):
+    title_lc: str = ""  # title.lower()
+    body_lc: str = ""  # text.lower()
+    project_lc: str = ""  # cwd.lower() (full path, so project:smart-gift-card works)
+    branch_lc: str = ""  # git_branch.lower()
+    project_name: str = ""  # Path(cwd).name (leaf folder, for display + dropdown)
+    last_date: date | None = None  # parsed date(last_at), for range filters + recency
 
     def to_dict(self, *, include_text: bool = False) -> dict:
         data = {
@@ -91,6 +97,16 @@ def _block_text(content: object) -> str:
                     parts.append(_block_text(inner))
         return "\n".join(parts)
     return ""
+
+
+def _parse_date(ts: str) -> date | None:
+    """Parse an ISO-8601 timestamp's date (or None)."""
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).date()
+    except ValueError:
+        return None
 
 
 def _parse_session(path: Path) -> Conversation | None:
@@ -170,7 +186,12 @@ def _parse_session(path: Path) -> Conversation | None:
         project_dir=path.parent.name,
         file_path=str(path),
         text=body_text,
-        search_blob=(title + "\n" + body_text).lower(),
+        title_lc=title.lower(),
+        body_lc=body_text.lower(),
+        project_lc=cwd.lower(),
+        branch_lc=(branch or "—").lower(),
+        project_name=Path(cwd).name,
+        last_date=_parse_date(last),
     )
 
 
@@ -199,57 +220,6 @@ def index_conversations(projects_dir: Path | None = None) -> list[Conversation]:
             convos.append(convo)
     convos.sort(key=lambda c: c.last_at, reverse=True)
     return convos
-
-
-def _snippet(text: str, terms: list[str], width: int = 160) -> str:
-    """Return a context window around the first matching term."""
-    lower = text.lower()
-    pos = -1
-    for term in terms:
-        i = lower.find(term)
-        if i != -1 and (pos == -1 or i < pos):
-            pos = i
-    if pos == -1:
-        return ""
-    start = max(0, pos - width // 2)
-    end = min(len(text), pos + width // 2)
-    snip = text[start:end].replace("\n", " ").strip()
-    return ("…" if start > 0 else "") + snip + ("…" if end < len(text) else "")
-
-
-def search(conversations: list[Conversation], query: str) -> list[dict]:
-    """Full-text search: every term must appear in the title or body (AND).
-
-    Matching uses each conversation's precomputed lowercased ``search_blob``
-    (``title`` + body, built once at index time) so no up-to-500k-char string is
-    re-lowercased per call. Returns result dicts (conversation metadata + a
-    ``snippet``), newest first. An empty query returns all conversations.
-    """
-    terms = [t for t in query.lower().split() if t]
-    results: list[dict] = []
-    for convo in conversations:
-        if terms and not all(term in convo.search_blob for term in terms):
-            continue
-        item = convo.to_dict()
-        item["snippet"] = _snippet(convo.text, terms) if terms else ""
-        results.append(item)
-    return results
-
-
-def filter_conversations(
-    conversations: list[Conversation], query: str
-) -> list[Conversation]:
-    """Return the Conversation objects matching ``query`` (AND over terms).
-
-    Uses each conversation's precomputed lowercased ``search_blob`` and skips snippet
-    building, so it is much cheaper than :func:`search` for callers (the TUI) that
-    render the records directly and never show snippets. Order is preserved (the
-    index is already newest-first); an empty query returns all conversations.
-    """
-    terms = [t for t in query.lower().split() if t]
-    if not terms:
-        return list(conversations)
-    return [c for c in conversations if all(term in c.search_blob for term in terms)]
 
 
 def _build_resume_command(cwd: str, claude_exe: str, session_id: str) -> str:
@@ -411,6 +381,8 @@ def launch_resume(
 
 
 if __name__ == "__main__":  # built-in smoke test (no elevation; dry-run only)
+    from ccdashboard import search
+
     for _s in (sys.stdout, sys.stderr):
         try:
             _s.reconfigure(encoding="utf-8", errors="replace")
@@ -422,9 +394,9 @@ if __name__ == "__main__":  # built-in smoke test (no elevation; dry-run only)
         print(f"  [{c.git_branch:<22.22}] {Path(c.cwd).name:<18.18} {c.message_count:>4} msgs  "
               f"{c.last_at[:16]}  {c.title[:46]}")
     if idx:
-        hits = search(idx, "dashboard")
+        hits = search.rank(idx, search.parse_query("dashboard"))
         print(f"\nsearch 'dashboard' -> {len(hits)} hits; first: "
-              f"{(hits[0]['title'][:50] + ' :: ' + hits[0]['snippet'][:60]) if hits else '—'}")
+              f"{(hits[0].title[:50]) if hits else '—'}")
         plan = launch_resume(idx[0].session_id, idx, dry_run=True)
         print(f"\ndry-run resume of newest ({idx[0].session_id[:12]}…):")
         print("  claude :", plan["claude_exe"])

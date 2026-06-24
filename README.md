@@ -11,7 +11,7 @@ configures and runs any of them from one place — regardless of stack.
 | [**MeetingNotesOverlay**](MeetingNotesOverlay/) | .NET 10 / WinUI 3 | Always‑on‑top notes overlay that is **invisible to screen sharing** (Teams/Slack/Zoom/Meet) via `WDA_EXCLUDEFROMCAPTURE`. |
 | [**ClaudePanes**](ClaudePanes/) | Python CLI | Opens multi‑pane Claude Code terminal layouts from a TOML file (Windows Terminal / WezTerm / tmux / Zellij). |
 | [**ClaudeBench**](ClaudeBench/) | Python CLI | Measures the token footprint of your `~/.claude` config (skills/agents/memory/rules) — free static `count_tokens` plus optional empirical runs; CLI + Markdown report. |
-| [**CCDashboard**](CCDashboard/) | Python (Textual TUI) | "Jarvis" console for your `~/.claude`: searchable config (Enter opens the file in VS Code), full‑text conversation search + resume, and a daily Claude‑graded **QuizMe**. |
+| [**CCDashboard**](CCDashboard/) | Python (Textual TUI) | "Jarvis" console for your `~/.claude`: searchable config (Enter opens the file in VS Code), relevance-ranked conversation search (operators, filters, fuzzy, highlighted preview) + resume, and a daily Claude‑graded **QuizMe**. |
 
 ## Launcher
 
