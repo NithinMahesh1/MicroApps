@@ -27,6 +27,8 @@ Default usage (`list`, `snapshot`, `diff`) is always free.
 - **Anthropic API key** (`ANTHROPIC_API_KEY`) — needed for the free static path.
   If you don't have one, ClaudeBench falls back to `claude -p` baseline totals
   (uses your Claude subscription; small allowance cost per run).
+  Set it persistently on Windows (user scope), then restart your terminal:
+  `[Environment]::SetEnvironmentVariable('ANTHROPIC_API_KEY', 'sk-ant-...', 'User')`
 
 ---
 

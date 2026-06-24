@@ -56,7 +56,7 @@ A **Python TUI (Terminal User Interface)** dashboard that shows:
 - `credentials.json` — Google OAuth client credentials
 - `token.json` — Auto-generated OAuth access/refresh token
 
-**Note:** No `.gitignore` exists yet — these files are at risk of being committed.
+**Note:** These are git-ignored — the repo-root `.gitignore` excludes `**/credentials.json` and `**/token.json` everywhere, and the real files live in the git-ignored `config/` folder (only `*.example.json` templates are committed). Verified with `git check-ignore`.
 
 ## Known Issues
 

@@ -25,6 +25,8 @@ their own. All are UI-agnostic, so the UI can change without touching them.
 - `pip install -r requirements.txt` (Textual + Rich + pyfiglet + anthropic — pinned, pip-audit-clean)
 - **For QuizMe:** set `ANTHROPIC_API_KEY` (Claude generates + grades the questions).
   Without it the other tabs work fully and QuizMe shows a "set the key" prompt.
+  Set it persistently on Windows (user scope), then restart your terminal:
+  `[Environment]::SetEnvironmentVariable('ANTHROPIC_API_KEY', 'sk-ant-...', 'User')`
 - **Optional:** run a ClaudeBench `snapshot` first to populate the token-cost columns.
   Without one, the Config tab still lists everything; token fields show `—`.
 
