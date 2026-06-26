@@ -193,22 +193,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void OpenFile()
-    {
-        var picker = new FileOpenPicker();
-        InitializeWithWindow.Initialize(picker, _hwnd);
-
-        picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
-        picker.FileTypeFilter.Add(".txt");
-        picker.FileTypeFilter.Add(".md");
-
-        var file = await picker.PickSingleFileAsync();
-        if (file != null)
-        {
-            LoadFile(file.Path);
-        }
-    }
-
     private async void OpenFolderAsync()
     {
         var picker = new FolderPicker();
@@ -217,18 +201,33 @@ public sealed partial class MainWindow : Window
         picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
         picker.FileTypeFilter.Add("*");
 
-        var folder = await picker.PickSingleFolderAsync();
-        if (folder is null) return;
+        // The folder dialog opens as its own window; the always-on-top overlay would
+        // otherwise sit in front of it and the dialog would look like it never opened.
+        // Drop topmost while it's shown, then restore it.
+        var wasOnTop = _isAlwaysOnTop;
+        if (wasOnTop)
+            SetAlwaysOnTop(false);
+        try
+        {
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder is null)
+                return;
 
-        if (!_extraDirectories.Contains(folder.Path, StringComparer.OrdinalIgnoreCase))
-            _extraDirectories.Add(folder.Path);
+            if (!_extraDirectories.Contains(folder.Path, StringComparer.OrdinalIgnoreCase))
+                _extraDirectories.Add(folder.Path);
 
-        PopulateFileList();
-        FileSplitView.IsPaneOpen = true;
+            PopulateFileList();
+            FileSplitView.IsPaneOpen = true;
 
-        var count = _allFiles.Count(f =>
-            string.Equals(f.DirectoryName, folder.Path, StringComparison.OrdinalIgnoreCase));
-        UpdateStatus($"Added {folder.Path} ({count} notes)");
+            var count = _allFiles.Count(f =>
+                string.Equals(f.DirectoryName, folder.Path, StringComparison.OrdinalIgnoreCase));
+            UpdateStatus($"Added {folder.Path} ({count} notes)");
+        }
+        finally
+        {
+            if (wasOnTop)
+                SetAlwaysOnTop(true);
+        }
     }
 
     private void ReloadCurrentFile()
@@ -322,8 +321,7 @@ public sealed partial class MainWindow : Window
 
             ## Quick Start
             - Click the **hamburger menu** or press **Ctrl+L** to open the file list
-            - Click **Open** or press **Ctrl+O** to open a file
-            - Click the **folder icon** or press **Ctrl+Shift+O** to browse notes in any folder
+            - Click **Open** or press **Ctrl+O** to add a folder of notes (its .md/.txt join the list)
             - **Ctrl + / -** to change font size
             - Press **Ctrl+R** to reload the current file
 
@@ -343,9 +341,6 @@ public sealed partial class MainWindow : Window
 
     private void ToggleFilePanel_Click(object sender, RoutedEventArgs e)
         => FileSplitView.IsPaneOpen = !FileSplitView.IsPaneOpen;
-
-    private void OpenFile_Click(object sender, RoutedEventArgs e)
-        => OpenFile();
 
     private void OpenFolder_Click(object sender, RoutedEventArgs e)
         => OpenFolderAsync();
