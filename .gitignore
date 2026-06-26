@@ -72,3 +72,14 @@ ENV/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ============================================================
+# Archives / local exports — avoid accidentally committing app zips,
+# backups, or exports (e.g. a stray MeetingNotesOverlay.zip)
+# ============================================================
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+*.rar
