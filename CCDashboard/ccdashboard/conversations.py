@@ -1,5 +1,5 @@
 """
-conversations.py — index, search, and resume Claude Code conversations.
+conversations.py — index and resume Claude Code conversations.
 
 Claude Code stores every conversation as a JSONL transcript under
 ``~/.claude/projects/<encoded-cwd>/<session-id>.jsonl``. Each line is a JSON
@@ -8,31 +8,36 @@ event carrying ``cwd``, ``gitBranch``, ``sessionId``, ``timestamp``, an
 
 This module:
   * ``index_conversations()`` — scan all transcripts into ``Conversation`` records.
-  * ``search()``               — full-text keyword search with snippets.
-  * ``launch_resume()``        — replay the user's own Start-menu launch (Win ->
-                                 type "powershell" -> Ctrl+Shift+Enter) to open
-                                 THEIR elevated terminal, with the resume command
-                                 (``cd <cwd>; claude --resume <id>``, claude by its
-                                 FULL path) placed on the clipboard to paste.
+  * ``launch_resume()``        — open ``cd <cwd>; claude --resume <id>`` (claude by its
+                                 FULL path) in the user's terminal. The mechanism is
+                                 per-OS: on **Windows** the command is placed on the
+                                 clipboard and the user's own Start-menu admin launch
+                                 (Win -> "powershell" -> Ctrl+Shift+Enter) is replayed
+                                 to open THEIR elevated terminal to paste into; on
+                                 **Linux** a terminal emulator is spawned to run it; on
+                                 **macOS** it runs in Terminal.app via ``osascript``.
 
 Security: ``launch_resume`` only ever resumes a ``session_id`` that exists in the
 index, takes the working directory from the (trusted) transcript — never from the
-caller — and validates the id against a strict pattern. The clipboard command
-single-quote-escapes the cwd and the claude path for a PowerShell literal; we never
-spawn a shell ourselves (the user pastes), and Windows UIPI is why the command is
-delivered via the clipboard rather than typed into the elevated window.
+caller — and validates the id against a strict pattern. The cwd and the claude path
+are quoted for the target shell (single-quote-escaped for the Windows PowerShell
+literal; ``shlex.quote`` for the POSIX shell). On Windows we never spawn a shell
+ourselves (the user pastes), and UIPI is why the command is delivered via the
+clipboard rather than typed into the elevated window.
 """
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import sys
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
 
 _SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_MAX_TEXT_PER_CONVO = 500_000  # cap searchable text per conversation (chars)
+_MAX_TEXT_PER_CONVO = 1_000_000  # cap searchable text per conversation (chars)
 
 
 @dataclass(frozen=True)
@@ -49,7 +54,13 @@ class Conversation:
     project_dir: str
     file_path: str
     text: str = ""  # concatenated message text (original case), for snippets (not serialized)
-    search_blob: str = ""  # (title + "\n" + text).lower(), precomputed once at index time
+    # Precomputed search fields, built once at index time (not serialized):
+    title_lc: str = ""  # title.lower()
+    body_lc: str = ""  # text.lower()
+    project_lc: str = ""  # cwd.lower() (full path, so project:smart-gift-card works)
+    branch_lc: str = ""  # git_branch.lower()
+    project_name: str = ""  # Path(cwd).name (leaf folder, for display + dropdown)
+    last_date: date | None = None  # parsed date(last_at), for range filters + recency
 
     def to_dict(self, *, include_text: bool = False) -> dict:
         data = {
@@ -91,6 +102,16 @@ def _block_text(content: object) -> str:
                     parts.append(_block_text(inner))
         return "\n".join(parts)
     return ""
+
+
+def _parse_date(ts: str) -> date | None:
+    """Parse an ISO-8601 timestamp's date (or None)."""
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).date()
+    except ValueError:
+        return None
 
 
 def _parse_session(path: Path) -> Conversation | None:
@@ -170,7 +191,12 @@ def _parse_session(path: Path) -> Conversation | None:
         project_dir=path.parent.name,
         file_path=str(path),
         text=body_text,
-        search_blob=(title + "\n" + body_text).lower(),
+        title_lc=title.lower(),
+        body_lc=body_text.lower(),
+        project_lc=cwd.lower(),
+        branch_lc=(branch or "—").lower(),
+        project_name=Path(cwd).name,
+        last_date=_parse_date(last),
     )
 
 
@@ -178,13 +204,17 @@ def _decode_project_dir(name: str) -> str:
     """Best-effort decode of an encoded project dir name back to a path.
 
     Claude encodes the cwd by replacing path separators with ``-`` (e.g.
-    ``C--Users-Nithin-MyGit``). This is a lossy fallback only used when an event
-    has no explicit ``cwd``; ``\\`` cannot be reliably distinguished from a literal
-    ``-``, so we just present the encoded form with the drive colon restored.
+    ``C--Users-Nithin-MyGit`` on Windows, ``-home-nithin-MyGit`` on POSIX). This is a
+    lossy, display-only fallback used when an event has no explicit ``cwd``; a real
+    separator cannot be reliably distinguished from a literal ``-``. The separator we
+    restore is platform-appropriate: ``\\`` (with the drive colon) on Windows, ``/``
+    on POSIX.
     """
-    if len(name) >= 2 and name[1] == "-" and name[0].isalpha():
-        return name[0] + ":" + name[1:].replace("-", "\\")
-    return name.replace("-", "\\")
+    if os.name == "nt":
+        if len(name) >= 2 and name[1] == "-" and name[0].isalpha():
+            return name[0] + ":" + name[1:].replace("-", "\\")
+        return name.replace("-", "\\")
+    return name.replace("-", "/")
 
 
 def index_conversations(projects_dir: Path | None = None) -> list[Conversation]:
@@ -199,57 +229,6 @@ def index_conversations(projects_dir: Path | None = None) -> list[Conversation]:
             convos.append(convo)
     convos.sort(key=lambda c: c.last_at, reverse=True)
     return convos
-
-
-def _snippet(text: str, terms: list[str], width: int = 160) -> str:
-    """Return a context window around the first matching term."""
-    lower = text.lower()
-    pos = -1
-    for term in terms:
-        i = lower.find(term)
-        if i != -1 and (pos == -1 or i < pos):
-            pos = i
-    if pos == -1:
-        return ""
-    start = max(0, pos - width // 2)
-    end = min(len(text), pos + width // 2)
-    snip = text[start:end].replace("\n", " ").strip()
-    return ("…" if start > 0 else "") + snip + ("…" if end < len(text) else "")
-
-
-def search(conversations: list[Conversation], query: str) -> list[dict]:
-    """Full-text search: every term must appear in the title or body (AND).
-
-    Matching uses each conversation's precomputed lowercased ``search_blob``
-    (``title`` + body, built once at index time) so no up-to-500k-char string is
-    re-lowercased per call. Returns result dicts (conversation metadata + a
-    ``snippet``), newest first. An empty query returns all conversations.
-    """
-    terms = [t for t in query.lower().split() if t]
-    results: list[dict] = []
-    for convo in conversations:
-        if terms and not all(term in convo.search_blob for term in terms):
-            continue
-        item = convo.to_dict()
-        item["snippet"] = _snippet(convo.text, terms) if terms else ""
-        results.append(item)
-    return results
-
-
-def filter_conversations(
-    conversations: list[Conversation], query: str
-) -> list[Conversation]:
-    """Return the Conversation objects matching ``query`` (AND over terms).
-
-    Uses each conversation's precomputed lowercased ``search_blob`` and skips snippet
-    building, so it is much cheaper than :func:`search` for callers (the TUI) that
-    render the records directly and never show snippets. Order is preserved (the
-    index is already newest-first); an empty query returns all conversations.
-    """
-    terms = [t for t in query.lower().split() if t]
-    if not terms:
-        return list(conversations)
-    return [c for c in conversations if all(term in c.search_blob for term in terms)]
 
 
 def _build_resume_command(cwd: str, claude_exe: str, session_id: str) -> str:
@@ -360,17 +339,122 @@ def _open_admin_terminal_via_search() -> None:
     up(vk_ctrl)
 
 
+# Linux terminal emulators we try, in order; the first one ``shutil.which`` finds
+# hosts the resume. ``x-terminal-emulator`` is Debian's "default terminal" alternative;
+# the rest are common concrete emulators.
+_LINUX_TERMINALS: tuple[str, ...] = (
+    "x-terminal-emulator",
+    "gnome-terminal",
+    "konsole",
+    "xfce4-terminal",
+    "alacritty",
+    "kitty",
+    "xterm",
+)
+
+
+def _find_terminal() -> str | None:
+    """Full path to the first installed Linux terminal emulator, or None if none."""
+    for name in _LINUX_TERMINALS:
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
+def _posix_shell_command(cwd: str, claude_exe: str, session_id: str) -> str:
+    """``cd <cwd>; <claude> --resume <id>`` with cwd + claude path POSIX-shell-quoted.
+
+    ``session_id`` is already validated against ``_SESSION_ID_RE`` (no whitespace or
+    shell metacharacters), so only the two paths need ``shlex.quote``.
+    """
+    import shlex
+
+    return f"cd {shlex.quote(cwd)}; {shlex.quote(claude_exe)} --resume {session_id}"
+
+
+def _linux_resume_argv(
+    term: str, cwd: str, claude_exe: str, session_id: str
+) -> list[str]:
+    """Argv that opens ``term`` running the resume, then drops to an interactive shell.
+
+    gnome-terminal takes the command after ``--``; every other supported emulator
+    takes it after ``-e``. ``exec bash`` keeps the window open after Claude exits so
+    the user isn't dropped immediately.
+    """
+    inner = f"{_posix_shell_command(cwd, claude_exe, session_id)}; exec bash"
+    flag = "--" if os.path.basename(term) == "gnome-terminal" else "-e"
+    return [term, flag, "bash", "-lc", inner]
+
+
+def _macos_resume_argv(cwd: str, claude_exe: str, session_id: str) -> list[str]:
+    """Argv for ``osascript`` that runs the resume in a new Terminal.app window.
+
+    The shell command is POSIX-quoted, then ``\\`` and ``"`` are escaped for the
+    AppleScript double-quoted string literal the command is embedded in.
+    """
+    shell_cmd = _posix_shell_command(cwd, claude_exe, session_id)
+    applescript_literal = shell_cmd.replace("\\", "\\\\").replace('"', '\\"')
+    script = f'tell application "Terminal" to do script "{applescript_literal}"'
+    return ["osascript", "-e", script]
+
+
+def _resume_plan(convo: Conversation) -> dict:
+    """The OS-appropriate resume plan, built but never run (safe for dry-run).
+
+    * Windows: a PowerShell one-liner (``command``) delivered via the clipboard + a
+      synthetic Start-menu admin launch — no argv is spawned, so the returned plan
+      keeps exactly its original keys (``session_id``/``cwd``/``claude_exe``/``command``).
+    * Linux: a plan that adds ``mode``/``platform`` and the exact terminal-emulator
+      ``argv`` that would be spawned. Raises ``RuntimeError`` if no terminal is found.
+    * macOS: likewise, with an ``osascript`` ``argv``.
+
+    ``cwd`` always comes from the indexed transcript (never the caller); the caller is
+    responsible for validating ``session_id`` against ``_SESSION_ID_RE`` beforehand.
+    """
+    cwd = convo.cwd
+    session_id = convo.session_id
+    claude_exe = _claude_exe()
+
+    if os.name == "nt":
+        return {
+            "session_id": session_id,
+            "cwd": cwd,
+            "claude_exe": claude_exe,
+            "command": _build_resume_command(cwd, claude_exe, session_id),
+        }
+
+    if sys.platform == "darwin":
+        argv = _macos_resume_argv(cwd, claude_exe, session_id)
+        mode = "macos-osascript"
+    else:
+        term = _find_terminal()
+        if term is None:
+            raise RuntimeError(
+                "no terminal emulator found to open the resume — install one of: "
+                + ", ".join(_LINUX_TERMINALS)
+            )
+        argv = _linux_resume_argv(term, cwd, claude_exe, session_id)
+        mode = "linux-terminal"
+
+    import shlex
+
+    return {
+        "session_id": session_id,
+        "cwd": cwd,
+        "claude_exe": claude_exe,
+        "mode": mode,
+        "platform": sys.platform,
+        "argv": argv,
+        "command": shlex.join(argv),  # display/inspection copy of the argv
+    }
+
+
 def build_resume_plan(convo: Conversation) -> dict:
-    """Build (without running) the resume plan for inspection/dry-run."""
+    """Build (without running) the OS-appropriate resume plan for inspection/dry-run."""
     if not _SESSION_ID_RE.match(convo.session_id):
         raise ValueError(f"refusing to resume — invalid session id: {convo.session_id!r}")
-    claude_exe = _claude_exe()
-    return {
-        "session_id": convo.session_id,
-        "cwd": convo.cwd,
-        "claude_exe": claude_exe,
-        "command": _build_resume_command(convo.cwd, claude_exe, convo.session_id),
-    }
+    return _resume_plan(convo)
 
 
 def launch_resume(
@@ -379,14 +463,19 @@ def launch_resume(
     *,
     dry_run: bool = False,
 ) -> dict:
-    """Resume ``session_id`` in the user's own admin terminal via Start-menu search.
+    """Resume ``session_id`` in the user's terminal, using the per-OS mechanism.
 
-    Copies ``cd <cwd>; claude --resume <id>`` (claude by full path) to the clipboard,
-    then replays Win -> type "powershell" -> Ctrl+Shift+Enter so the SAME elevated
-    terminal the user normally uses opens; they finish with Ctrl+V + Enter. The id
-    must exist in ``conversations`` and the working dir comes from that record (never
-    the caller). With ``dry_run=True`` nothing is copied or typed — the plan is just
-    returned (so tests fire no keystrokes and no UAC prompt).
+    * **Windows**: copies ``cd <cwd>; claude --resume <id>`` (claude by full path) to
+      the clipboard, then replays Win -> "powershell" -> Ctrl+Shift+Enter so the SAME
+      elevated terminal the user normally uses opens; they finish with Ctrl+V + Enter.
+    * **Linux**: spawns the first available terminal emulator running the resume.
+    * **macOS**: runs the resume in Terminal.app via ``osascript``.
+
+    The id must exist in ``conversations`` and the working dir comes from that record
+    (never the caller). With ``dry_run=True`` nothing is copied, typed, or launched —
+    the plan is just returned (so tests fire no keystrokes, UAC prompt, or processes).
+    Off Windows the plan also carries ``mode``/``platform`` and the exact ``argv`` that
+    would be spawned, so the launch decision is inspectable without running it.
     """
     convo = next((c for c in conversations if c.session_id == session_id), None)
     if convo is None:
@@ -394,23 +483,23 @@ def launch_resume(
     if not _SESSION_ID_RE.match(session_id):
         raise ValueError(f"invalid session id: {session_id!r}")
 
-    claude_exe = _claude_exe()
-    command = _build_resume_command(convo.cwd, claude_exe, session_id)
-    plan = {
-        "session_id": session_id,
-        "cwd": convo.cwd,
-        "claude_exe": claude_exe,
-        "command": command,
-    }
+    plan = _resume_plan(convo)
     if dry_run:
         return plan
 
-    _set_clipboard(command)
-    _open_admin_terminal_via_search()
+    if os.name == "nt":
+        _set_clipboard(plan["command"])
+        _open_admin_terminal_via_search()
+    else:
+        import subprocess
+
+        subprocess.Popen(plan["argv"])
     return plan
 
 
 if __name__ == "__main__":  # built-in smoke test (no elevation; dry-run only)
+    from ccdashboard import search
+
     for _s in (sys.stdout, sys.stderr):
         try:
             _s.reconfigure(encoding="utf-8", errors="replace")
@@ -422,9 +511,9 @@ if __name__ == "__main__":  # built-in smoke test (no elevation; dry-run only)
         print(f"  [{c.git_branch:<22.22}] {Path(c.cwd).name:<18.18} {c.message_count:>4} msgs  "
               f"{c.last_at[:16]}  {c.title[:46]}")
     if idx:
-        hits = search(idx, "dashboard")
+        hits = search.rank(idx, search.parse_query("dashboard"))
         print(f"\nsearch 'dashboard' -> {len(hits)} hits; first: "
-              f"{(hits[0]['title'][:50] + ' :: ' + hits[0]['snippet'][:60]) if hits else '—'}")
+              f"{(hits[0].title[:50]) if hits else '—'}")
         plan = launch_resume(idx[0].session_id, idx, dry_run=True)
         print(f"\ndry-run resume of newest ({idx[0].session_id[:12]}…):")
         print("  claude :", plan["claude_exe"])

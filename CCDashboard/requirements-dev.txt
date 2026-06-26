@@ -1,0 +1,4 @@
+# CCDashboard dev-only dependencies — pinned to a pip-audit-clean version.
+# Install with: python -m pip install -r requirements-dev.txt
+# Runtime deps live in requirements.txt; this file is for running the test suite.
+pytest==8.3.4

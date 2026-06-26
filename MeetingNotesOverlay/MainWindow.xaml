@@ -28,9 +28,9 @@
                     </Button.KeyboardAccelerators>
                 </Button>
 
-                <!-- Open file -->
-                <Button Content="Open" Click="OpenFile_Click" Height="32"
-                        ToolTipService.ToolTip="Open file (Ctrl+O)">
+                <!-- Open a folder of notes (adds its .md/.txt to the file list) -->
+                <Button Content="Open" Click="OpenFolder_Click" Height="32"
+                        ToolTipService.ToolTip="Open a folder of notes (Ctrl+O)">
                     <Button.KeyboardAccelerators>
                         <KeyboardAccelerator Modifiers="Control" Key="O"/>
                     </Button.KeyboardAccelerators>

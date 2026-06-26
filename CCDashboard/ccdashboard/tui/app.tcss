@@ -82,6 +82,26 @@ DataTable > .datatable--odd-row {
     text-style: italic;
 }
 
+/* CONVERSATIONS tab — filter row + preview pane */
+.filter-row {
+    height: 3;
+    margin: 1 2 0 2;
+}
+
+.filter-row Select {
+    width: 1fr;
+    margin: 0 1 0 0;
+}
+
+#conv-preview {
+    height: 9;
+    margin: 0 2;
+    padding: 0 1;
+    background: #070b12;
+    color: #cfeffd;
+    border: round #103040;
+}
+
 /* QuizMe tab */
 .quiz-question {
     margin: 1 2;
