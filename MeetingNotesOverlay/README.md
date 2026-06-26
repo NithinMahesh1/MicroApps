@@ -55,6 +55,7 @@ dotnet build -c Release
 |---------|----------|-------------|
 | Hamburger menu | `Ctrl+L` | Toggle the file browser panel |
 | Open | `Ctrl+O` | Open a file via dialog |
+| Open Folder | `Ctrl+Shift+O` | Add any folder to the file browser |
 | Reload | `Ctrl+R` | Reload the current file |
 | A- / A+ | `Ctrl+-` / `Ctrl++` | Decrease / increase font size (range: 8–28) |
 | Opacity buttons | — | Adjust window transparency (20%–100%) |

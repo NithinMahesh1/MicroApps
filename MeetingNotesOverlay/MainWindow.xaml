@@ -36,6 +36,15 @@
                     </Button.KeyboardAccelerators>
                 </Button>
 
+                <!-- Open folder -->
+                <Button Click="OpenFolder_Click" Width="36" Height="32"
+                        ToolTipService.ToolTip="Open folder (Ctrl+Shift+O)">
+                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE8B7;" FontSize="14"/>
+                    <Button.KeyboardAccelerators>
+                        <KeyboardAccelerator Modifiers="Control,Shift" Key="O"/>
+                    </Button.KeyboardAccelerators>
+                </Button>
+
                 <!-- Reload -->
                 <Button Click="Reload_Click" Width="36" Height="32"
                         ToolTipService.ToolTip="Reload file (Ctrl+R)">

@@ -73,6 +73,7 @@ public sealed partial class MainWindow : Window
     private bool _isAlwaysOnTop = true;
     private string? _currentFilePath;
     private List<FileInfo> _allFiles = [];
+    private List<string> _extraDirectories = [];
 
     public MainWindow()
     {
@@ -148,7 +149,7 @@ public sealed partial class MainWindow : Window
 
     private void PopulateFileList()
     {
-        _allFiles = NotesDirectories
+        _allFiles = NotesDirectories.Concat(_extraDirectories)
             .Where(Directory.Exists)
             .SelectMany(dir => new DirectoryInfo(dir).GetFiles())
             .Where(f => f.Extension.Equals(".txt", StringComparison.OrdinalIgnoreCase)
@@ -206,6 +207,28 @@ public sealed partial class MainWindow : Window
         {
             LoadFile(file.Path);
         }
+    }
+
+    private async void OpenFolderAsync()
+    {
+        var picker = new FolderPicker();
+        InitializeWithWindow.Initialize(picker, _hwnd);
+
+        picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+        picker.FileTypeFilter.Add("*");
+
+        var folder = await picker.PickSingleFolderAsync();
+        if (folder is null) return;
+
+        if (!_extraDirectories.Contains(folder.Path, StringComparer.OrdinalIgnoreCase))
+            _extraDirectories.Add(folder.Path);
+
+        PopulateFileList();
+        FileSplitView.IsPaneOpen = true;
+
+        var count = _allFiles.Count(f =>
+            string.Equals(f.DirectoryName, folder.Path, StringComparison.OrdinalIgnoreCase));
+        UpdateStatus($"Added {folder.Path} ({count} notes)");
     }
 
     private void ReloadCurrentFile()
@@ -300,6 +323,7 @@ public sealed partial class MainWindow : Window
             ## Quick Start
             - Click the **hamburger menu** or press **Ctrl+L** to open the file list
             - Click **Open** or press **Ctrl+O** to open a file
+            - Click the **folder icon** or press **Ctrl+Shift+O** to browse notes in any folder
             - **Ctrl + / -** to change font size
             - Press **Ctrl+R** to reload the current file
 
@@ -322,6 +346,9 @@ public sealed partial class MainWindow : Window
 
     private void OpenFile_Click(object sender, RoutedEventArgs e)
         => OpenFile();
+
+    private void OpenFolder_Click(object sender, RoutedEventArgs e)
+        => OpenFolderAsync();
 
     private void Reload_Click(object sender, RoutedEventArgs e)
         => ReloadCurrentFile();
