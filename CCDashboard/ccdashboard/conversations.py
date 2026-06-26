@@ -8,22 +8,27 @@ event carrying ``cwd``, ``gitBranch``, ``sessionId``, ``timestamp``, an
 
 This module:
   * ``index_conversations()`` — scan all transcripts into ``Conversation`` records.
-  * ``launch_resume()``        — replay the user's own Start-menu launch (Win ->
-                                 type "powershell" -> Ctrl+Shift+Enter) to open
-                                 THEIR elevated terminal, with the resume command
-                                 (``cd <cwd>; claude --resume <id>``, claude by its
-                                 FULL path) placed on the clipboard to paste.
+  * ``launch_resume()``        — open ``cd <cwd>; claude --resume <id>`` (claude by its
+                                 FULL path) in the user's terminal. The mechanism is
+                                 per-OS: on **Windows** the command is placed on the
+                                 clipboard and the user's own Start-menu admin launch
+                                 (Win -> "powershell" -> Ctrl+Shift+Enter) is replayed
+                                 to open THEIR elevated terminal to paste into; on
+                                 **Linux** a terminal emulator is spawned to run it; on
+                                 **macOS** it runs in Terminal.app via ``osascript``.
 
 Security: ``launch_resume`` only ever resumes a ``session_id`` that exists in the
 index, takes the working directory from the (trusted) transcript — never from the
-caller — and validates the id against a strict pattern. The clipboard command
-single-quote-escapes the cwd and the claude path for a PowerShell literal; we never
-spawn a shell ourselves (the user pastes), and Windows UIPI is why the command is
-delivered via the clipboard rather than typed into the elevated window.
+caller — and validates the id against a strict pattern. The cwd and the claude path
+are quoted for the target shell (single-quote-escaped for the Windows PowerShell
+literal; ``shlex.quote`` for the POSIX shell). On Windows we never spawn a shell
+ourselves (the user pastes), and UIPI is why the command is delivered via the
+clipboard rather than typed into the elevated window.
 """
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import sys
@@ -199,13 +204,17 @@ def _decode_project_dir(name: str) -> str:
     """Best-effort decode of an encoded project dir name back to a path.
 
     Claude encodes the cwd by replacing path separators with ``-`` (e.g.
-    ``C--Users-Nithin-MyGit``). This is a lossy fallback only used when an event
-    has no explicit ``cwd``; ``\\`` cannot be reliably distinguished from a literal
-    ``-``, so we just present the encoded form with the drive colon restored.
+    ``C--Users-Nithin-MyGit`` on Windows, ``-home-nithin-MyGit`` on POSIX). This is a
+    lossy, display-only fallback used when an event has no explicit ``cwd``; a real
+    separator cannot be reliably distinguished from a literal ``-``. The separator we
+    restore is platform-appropriate: ``\\`` (with the drive colon) on Windows, ``/``
+    on POSIX.
     """
-    if len(name) >= 2 and name[1] == "-" and name[0].isalpha():
-        return name[0] + ":" + name[1:].replace("-", "\\")
-    return name.replace("-", "\\")
+    if os.name == "nt":
+        if len(name) >= 2 and name[1] == "-" and name[0].isalpha():
+            return name[0] + ":" + name[1:].replace("-", "\\")
+        return name.replace("-", "\\")
+    return name.replace("-", "/")
 
 
 def index_conversations(projects_dir: Path | None = None) -> list[Conversation]:
@@ -330,17 +339,122 @@ def _open_admin_terminal_via_search() -> None:
     up(vk_ctrl)
 
 
+# Linux terminal emulators we try, in order; the first one ``shutil.which`` finds
+# hosts the resume. ``x-terminal-emulator`` is Debian's "default terminal" alternative;
+# the rest are common concrete emulators.
+_LINUX_TERMINALS: tuple[str, ...] = (
+    "x-terminal-emulator",
+    "gnome-terminal",
+    "konsole",
+    "xfce4-terminal",
+    "alacritty",
+    "kitty",
+    "xterm",
+)
+
+
+def _find_terminal() -> str | None:
+    """Full path to the first installed Linux terminal emulator, or None if none."""
+    for name in _LINUX_TERMINALS:
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
+def _posix_shell_command(cwd: str, claude_exe: str, session_id: str) -> str:
+    """``cd <cwd>; <claude> --resume <id>`` with cwd + claude path POSIX-shell-quoted.
+
+    ``session_id`` is already validated against ``_SESSION_ID_RE`` (no whitespace or
+    shell metacharacters), so only the two paths need ``shlex.quote``.
+    """
+    import shlex
+
+    return f"cd {shlex.quote(cwd)}; {shlex.quote(claude_exe)} --resume {session_id}"
+
+
+def _linux_resume_argv(
+    term: str, cwd: str, claude_exe: str, session_id: str
+) -> list[str]:
+    """Argv that opens ``term`` running the resume, then drops to an interactive shell.
+
+    gnome-terminal takes the command after ``--``; every other supported emulator
+    takes it after ``-e``. ``exec bash`` keeps the window open after Claude exits so
+    the user isn't dropped immediately.
+    """
+    inner = f"{_posix_shell_command(cwd, claude_exe, session_id)}; exec bash"
+    flag = "--" if os.path.basename(term) == "gnome-terminal" else "-e"
+    return [term, flag, "bash", "-lc", inner]
+
+
+def _macos_resume_argv(cwd: str, claude_exe: str, session_id: str) -> list[str]:
+    """Argv for ``osascript`` that runs the resume in a new Terminal.app window.
+
+    The shell command is POSIX-quoted, then ``\\`` and ``"`` are escaped for the
+    AppleScript double-quoted string literal the command is embedded in.
+    """
+    shell_cmd = _posix_shell_command(cwd, claude_exe, session_id)
+    applescript_literal = shell_cmd.replace("\\", "\\\\").replace('"', '\\"')
+    script = f'tell application "Terminal" to do script "{applescript_literal}"'
+    return ["osascript", "-e", script]
+
+
+def _resume_plan(convo: Conversation) -> dict:
+    """The OS-appropriate resume plan, built but never run (safe for dry-run).
+
+    * Windows: a PowerShell one-liner (``command``) delivered via the clipboard + a
+      synthetic Start-menu admin launch — no argv is spawned, so the returned plan
+      keeps exactly its original keys (``session_id``/``cwd``/``claude_exe``/``command``).
+    * Linux: a plan that adds ``mode``/``platform`` and the exact terminal-emulator
+      ``argv`` that would be spawned. Raises ``RuntimeError`` if no terminal is found.
+    * macOS: likewise, with an ``osascript`` ``argv``.
+
+    ``cwd`` always comes from the indexed transcript (never the caller); the caller is
+    responsible for validating ``session_id`` against ``_SESSION_ID_RE`` beforehand.
+    """
+    cwd = convo.cwd
+    session_id = convo.session_id
+    claude_exe = _claude_exe()
+
+    if os.name == "nt":
+        return {
+            "session_id": session_id,
+            "cwd": cwd,
+            "claude_exe": claude_exe,
+            "command": _build_resume_command(cwd, claude_exe, session_id),
+        }
+
+    if sys.platform == "darwin":
+        argv = _macos_resume_argv(cwd, claude_exe, session_id)
+        mode = "macos-osascript"
+    else:
+        term = _find_terminal()
+        if term is None:
+            raise RuntimeError(
+                "no terminal emulator found to open the resume — install one of: "
+                + ", ".join(_LINUX_TERMINALS)
+            )
+        argv = _linux_resume_argv(term, cwd, claude_exe, session_id)
+        mode = "linux-terminal"
+
+    import shlex
+
+    return {
+        "session_id": session_id,
+        "cwd": cwd,
+        "claude_exe": claude_exe,
+        "mode": mode,
+        "platform": sys.platform,
+        "argv": argv,
+        "command": shlex.join(argv),  # display/inspection copy of the argv
+    }
+
+
 def build_resume_plan(convo: Conversation) -> dict:
-    """Build (without running) the resume plan for inspection/dry-run."""
+    """Build (without running) the OS-appropriate resume plan for inspection/dry-run."""
     if not _SESSION_ID_RE.match(convo.session_id):
         raise ValueError(f"refusing to resume — invalid session id: {convo.session_id!r}")
-    claude_exe = _claude_exe()
-    return {
-        "session_id": convo.session_id,
-        "cwd": convo.cwd,
-        "claude_exe": claude_exe,
-        "command": _build_resume_command(convo.cwd, claude_exe, convo.session_id),
-    }
+    return _resume_plan(convo)
 
 
 def launch_resume(
@@ -349,14 +463,19 @@ def launch_resume(
     *,
     dry_run: bool = False,
 ) -> dict:
-    """Resume ``session_id`` in the user's own admin terminal via Start-menu search.
+    """Resume ``session_id`` in the user's terminal, using the per-OS mechanism.
 
-    Copies ``cd <cwd>; claude --resume <id>`` (claude by full path) to the clipboard,
-    then replays Win -> type "powershell" -> Ctrl+Shift+Enter so the SAME elevated
-    terminal the user normally uses opens; they finish with Ctrl+V + Enter. The id
-    must exist in ``conversations`` and the working dir comes from that record (never
-    the caller). With ``dry_run=True`` nothing is copied or typed — the plan is just
-    returned (so tests fire no keystrokes and no UAC prompt).
+    * **Windows**: copies ``cd <cwd>; claude --resume <id>`` (claude by full path) to
+      the clipboard, then replays Win -> "powershell" -> Ctrl+Shift+Enter so the SAME
+      elevated terminal the user normally uses opens; they finish with Ctrl+V + Enter.
+    * **Linux**: spawns the first available terminal emulator running the resume.
+    * **macOS**: runs the resume in Terminal.app via ``osascript``.
+
+    The id must exist in ``conversations`` and the working dir comes from that record
+    (never the caller). With ``dry_run=True`` nothing is copied, typed, or launched —
+    the plan is just returned (so tests fire no keystrokes, UAC prompt, or processes).
+    Off Windows the plan also carries ``mode``/``platform`` and the exact ``argv`` that
+    would be spawned, so the launch decision is inspectable without running it.
     """
     convo = next((c for c in conversations if c.session_id == session_id), None)
     if convo is None:
@@ -364,19 +483,17 @@ def launch_resume(
     if not _SESSION_ID_RE.match(session_id):
         raise ValueError(f"invalid session id: {session_id!r}")
 
-    claude_exe = _claude_exe()
-    command = _build_resume_command(convo.cwd, claude_exe, session_id)
-    plan = {
-        "session_id": session_id,
-        "cwd": convo.cwd,
-        "claude_exe": claude_exe,
-        "command": command,
-    }
+    plan = _resume_plan(convo)
     if dry_run:
         return plan
 
-    _set_clipboard(command)
-    _open_admin_terminal_via_search()
+    if os.name == "nt":
+        _set_clipboard(plan["command"])
+        _open_admin_terminal_via_search()
+    else:
+        import subprocess
+
+        subprocess.Popen(plan["argv"])
     return plan
 
 

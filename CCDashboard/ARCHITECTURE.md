@@ -23,13 +23,14 @@ CCDashboard/
     scan.py                build_view_model(config_dir) -> config-inventory dict
                            (reuses the sibling ClaudeBench scanner via sys.path).
     conversations.py       index_conversations() / launch_resume() over
-                           ~/.claude/projects/**/*.jsonl (indexing + elevated resume).
+                           ~/.claude/projects/**/*.jsonl (indexing + cross-platform resume).
     search.py              UI-agnostic search engine: parse_query / merge_ui_filters /
                            rank (relevance+recency) / highlight — no Textual.
     quiz.py                load_cards() (split notes into SM-2 cards) / review() +
                            selection / gen_question() + grade_answer() (Claude).
-    editor.py              open_in_editor(path) — open a config file in VS Code (CLI)
-                           or the OS default; used by the Config tab's Enter action.
+    editor.py              open_in_editor(path) — open a config file in VS Code (CLI) or
+                           the OS default (cross-platform: startfile / xdg-open / open);
+                           used by the Config tab's Enter action.
     tui/
       __init__.py
       app.py               CCDashboardApp (Textual App): Header, pyfiglet banner,
@@ -39,7 +40,8 @@ CCDashboard/
                            row-select -> editor.open_in_editor(item abs_path).
       conversations_view.py  ConversationsView — project + date filter row, search Input,
                            DataTable, highlighted preview pane; ranks via search.py;
-                           row-select -> launch_resume (clipboard + Start-menu admin launch).
+                           row-select -> launch_resume (per-OS: Win clipboard+keystroke /
+                           Linux terminal / macOS osascript).
       quiz_view.py         QuizView — question Static + answer TextArea + Submit;
                            gen/grade in @work workers; graceful no-key panel.
       app.tcss             Cyan/teal "Jarvis" theme.
@@ -72,7 +74,7 @@ search   ──▶ Config tab:        client-side substring filter over name/id/
 
 Enter on a conversation row ──▶ ConversationsView._resume (@work thread)
                             ──▶ conversations.launch_resume(session_id, index)
-                                (clipboard + Start-menu keystroke launch; see below)
+                                (per-OS terminal launch — see the contract below)
 
 QuizMe ──▶ load_quiz picks today's card ─▶ @work gen_question (Claude) ─▶ answer ─▶
            ctrl+s ─▶ @work grade_answer (Claude, structured) ─▶ apply_grade (SM-2)
@@ -112,13 +114,20 @@ ClaudeBench's `scanner.py` is imported read-only.
   `search.rank(...)`.
 - `launch_resume(session_id, conversations, *, dry_run=False) -> dict` — validates the
   session id against `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`, looks up the conversation's
-  `cwd` from the index, and builds `Set-Location -LiteralPath '<cwd>'; & '<claude>'
-  --resume <sid>` (claude resolved by full path so an *elevated* shell still finds it;
-  cwd + path single-quote escaped). It copies that to the clipboard (`CF_UNICODETEXT`
-  via ctypes) and replays Win → "powershell" → Ctrl+Shift+Enter (`keybd_event`) to open
-  the user's own admin terminal — they paste it. Windows UIPI forbids typing into an
-  elevated window, so delivery is via clipboard, not injection. The cwd comes from the
-  transcript, never from user input.
+  `cwd` from the index (never the caller), resolves `claude` by full path (so an
+  elevated/limited PATH still finds it), and dispatches per OS via `_resume_plan`:
+  - **Windows** (`os.name == "nt"`): builds `Set-Location -LiteralPath '<cwd>'; &
+    '<claude>' --resume <sid>` (single-quote-escaped), copies it to the clipboard
+    (`CF_UNICODETEXT` via ctypes), and replays Win → "powershell" → Ctrl+Shift+Enter
+    (`keybd_event`) to open the user's own admin terminal — they paste it (UIPI forbids
+    typing into an elevated window, so delivery is via clipboard).
+  - **Linux**: spawns the first installed terminal (`x-terminal-emulator`,
+    `gnome-terminal` [uses `--`], `konsole`, …, `xterm`) running `bash -lc 'cd <cwd>;
+    <claude> --resume <sid>; exec bash'`; raises `RuntimeError` if none is found.
+  - **macOS**: runs the same command in Terminal.app via `osascript`.
+  cwd + claude path are shell-quoted (`''` for the PowerShell literal, `shlex.quote` on
+  POSIX). `dry_run=True` returns the plan (off-Windows it adds `mode`/`platform`/`argv`)
+  without launching — used by tests so no keystrokes / UAC / processes fire.
 
 ### `ccdashboard/search.py` (UI-agnostic search engine)
 Pure stdlib + `rich.text`; depends only on `conversations.Conversation` and knows

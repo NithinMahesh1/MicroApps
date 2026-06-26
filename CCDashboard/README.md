@@ -13,9 +13,9 @@ A futuristic **terminal (TUI)** console for your global Claude Code setup
   inline query operators (`project:`/`dir:`, `branch:`, `after:`/`before:`, and
   `"exact phrases"`), and a typo still finds the chat thanks to fuzzy matching. A
   **highlighted preview pane** shows the matching context for the selected row. Press
-  **Enter** on a result to resume it: the resume command is copied to your clipboard and
-  your own admin terminal opens (Start → "powershell" → Ctrl+Shift+Enter) — paste with
-  **Ctrl+V** to run it.
+  **Enter** on a result to resume it in your terminal (Windows: the command is copied to your
+  clipboard and your admin terminal opens via Start → "powershell" → Ctrl+Shift+Enter to
+  paste; Linux/macOS: a terminal opens running `claude --resume` directly).
 - **QuizMe** — one Claude-generated question per day from your study notes
   (`Learning\Codebase\**\*.md`), Claude-graded, with SM-2 spaced repetition and a
   daily streak. Needs `ANTHROPIC_API_KEY` (shows a friendly prompt until you set it).
@@ -66,7 +66,7 @@ python cc_dashboard.py --config-dir <path>   # scan a different config dir
 | `↓` | drop from the search box into the results table |
 | `↑` / `↓` | move the row cursor |
 | `Enter` | (Config) open the selected component's file in VS Code |
-| `Enter` | (Conversations) resume the selected chat — opens your admin terminal; paste with Ctrl+V |
+| `Enter` | (Conversations) resume the selected chat in a terminal (Windows: admin terminal, then Ctrl+V to paste) |
 | `ctrl+s` | (QuizMe) submit your answer |
 | `ctrl+r` | refresh (re-scan config + re-index conversations) |
 | `q` | quit |
@@ -97,13 +97,20 @@ highlighted.
 
 ## Notes
 
-- **Resume** replays your own launch: it copies `cd <dir>; claude --resume <id>`
-  (claude referenced by its full path, so an elevated shell still finds it) to the
-  clipboard, then presses Win → types `powershell` → Ctrl+Shift+Enter to open the
-  same admin terminal you normally use; you finish with **Ctrl+V, Enter**. (Windows
-  blocks apps from typing into an elevated window — hence the paste.) It only resumes a
-  session present in the index and takes the working directory from the transcript —
-  never user input; the cwd/path are single-quote escaped.
+- **Resume** opens `cd <dir>; claude --resume <id>` (claude by its full path, so an
+  elevated/limited PATH still finds it) in your own terminal, per-OS: **Windows** copies the
+  command to the clipboard and replays Win → `powershell` → Ctrl+Shift+Enter to open your
+  admin terminal (Windows blocks apps from typing into an elevated window — hence the paste);
+  **Linux** spawns the first installed terminal emulator (`x-terminal-emulator`,
+  `gnome-terminal`, `konsole`, …) running it; **macOS** runs it in Terminal.app via
+  `osascript`. It only resumes a session present in the index and takes the working directory
+  from the transcript — never user input; the cwd + claude path are shell-quoted.
+- **Platform support** — the **Config inventory and the conversation search / filter /
+  preview work identically on Windows, Linux, and macOS** (pure `pathlib` + glob + JSON over
+  `~/.claude/projects`, so they just need Claude Code to have written transcripts on that
+  machine). Resume (above) and opening a config file are cross-platform too — file-open uses
+  the `code` CLI, falling back to `xdg-open` (Linux) / `open` (macOS) / the default app
+  (Windows).
 - The conversation index reads `~/.claude/projects/**/*.jsonl` read-only; nothing is
   written back. Heavy indexing runs in a background thread; search is debounced and runs
   entirely in memory over precomputed lowercased fields (title/body/project/branch) and
@@ -122,7 +129,7 @@ CCDashboard/
   cc_dashboard.py          entry point (parse --config-dir -> launch the TUI)
   ccdashboard/
     scan.py                build_view_model(config_dir) -> config inventory (reuses ClaudeBench)
-    conversations.py       index_conversations / launch_resume (indexing + resume)
+    conversations.py       index_conversations / launch_resume (indexing + cross-platform resume)
     search.py              parse_query / merge_ui_filters / rank / highlight (UI-agnostic)
     quiz.py                load_cards / SM-2 schedule / gen_question + grade_answer (Claude)
     tui/
