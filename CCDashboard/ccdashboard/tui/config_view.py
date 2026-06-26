@@ -1,16 +1,22 @@
 """Config tab — a searchable table of ~/.claude components (from scan.build_view_model)."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from textual import events, work
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import DataTable, Input, Static
 
 from ccdashboard import editor
+from ccdashboard.tui.backup_screen import BackupScreen
 
 
 class ConfigView(Vertical):
     """Search box + table of config components. ``_ccd_*`` avoids name clashes."""
+
+    BINDINGS = [Binding("ctrl+b", "backup", "Backup ~/.claude")]
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -55,6 +61,10 @@ class ConfigView(Vertical):
     def focus_search(self) -> None:
         """Put keyboard focus on the search box (the tab's entry point)."""
         self.query_one("#config-search", Input).focus()
+
+    def action_backup(self) -> None:
+        cfg = getattr(self.app, "_ccd_config_dir", Path.home() / ".claude")
+        self.app.push_screen(BackupScreen(cfg))
 
     def on_key(self, event: events.Key) -> None:
         # Down-arrow from the search box drops focus into the results table.

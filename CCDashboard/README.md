@@ -5,7 +5,8 @@ A futuristic **terminal (TUI)** console for your global Claude Code setup
 
 - **Config** — searchable inventory of your skills, agents, memory (`CLAUDE.md`),
   rules, and settings. Shows per-item token costs when a ClaudeBench `count_tokens`
-  snapshot exists. Press **Enter** on a row to open that file in **VS Code**.
+  snapshot exists. Press **Enter** on a row to open that file in **VS Code**, or
+  **`ctrl+b`** to back up your whole `~/.claude` to a dated folder.
 - **Conversations** — ranked full-text search across all your past Claude Code chats
   (`~/.claude/projects/**/*.jsonl`). Results are ordered by **relevance blended with
   recency** (not just newest-first), so the chat you mean floats to the top — add a
@@ -68,6 +69,7 @@ python cc_dashboard.py --config-dir <path>   # scan a different config dir
 | `↓` | drop from the search box into the results table |
 | `↑` / `↓` | move the row cursor |
 | `Enter` | (Config) open the selected component's file in VS Code |
+| `ctrl+b` | (Config) back up `~/.claude` to a dated folder |
 | `Enter` | (Conversations) resume the selected chat in a terminal (Windows: admin terminal, then Ctrl+V to paste) |
 | `ctrl+s` | (QuizMe) submit your answer |
 | `ctrl+r` | refresh (re-scan config + re-index conversations) |
@@ -121,6 +123,12 @@ highlighted.
 - **QuizMe** stores scheduling state **outside the repo** at
   `~/.claude/ccdashboard/quizme.json` (never committed). It needs `ANTHROPIC_API_KEY`;
   until then the tab shows a prompt instead of erroring.
+- **Backup** — from the Config tab, **`ctrl+b`** opens a dialog that copies your entire
+  `~/.claude` into a dated folder `claude-backup-YYYY-MM-DD_HH-MM-SS` under a configurable
+  backup directory (default `~/Backup Claude Code`); locked/unreadable files are skipped
+  and reported rather than aborting the copy. The backup directory is a persisted user
+  setting stored **outside the repo** at `~/.claude/ccdashboard/settings.json` (never
+  committed).
 
 ---
 
@@ -134,11 +142,13 @@ CCDashboard/
     conversations.py       index_conversations / launch_resume (indexing + cross-platform resume)
     search.py              parse_query / merge_ui_filters / rank / highlight (UI-agnostic)
     quiz.py                load_cards / SM-2 schedule / gen_question + grade_answer (Claude)
+    backup.py              get_backup_dir / set_backup_dir / backup_claude -> dated ~/.claude copy
     tui/
       app.py               CCDashboardApp — Header, pyfiglet banner, 3 tabs, Footer
       config_view.py       Config tab (search + DataTable)
       conversations_view.py  Conversations tab (filter row + search + DataTable + preview + resume)
       quiz_view.py         QuizMe tab (question + answer TextArea + Claude grading)
+      backup_screen.py     Backup dialog (ModalScreen) opened by Config's ctrl+b
       app.tcss             cyan/teal "Jarvis" theme
   tests/                   pytest suite (search/conversations units + a light view smoke)
   requirements.txt         textual / rich / pyfiglet / anthropic (pinned, pip-audit-clean)

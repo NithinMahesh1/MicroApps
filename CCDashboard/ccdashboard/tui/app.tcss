@@ -149,3 +149,92 @@ DataTable > .datatable--odd-row {
 .quiz-feedback.feedback-error {
     color: #ff7a7a;
 }
+
+/* BACKUP modal — dated snapshot of ~/.claude (Ctrl+B from the Config tab).
+   Placed last so the `BackupScreen` type selector wins the source-order tie
+   against the top-of-file `Screen` rule and the dialog floats over a dim wash. */
+BackupScreen {
+    align: center middle;
+    background: #05080d 75%;
+}
+
+#backup-dialog {
+    width: 70;
+    height: auto;
+    padding: 1 2;
+    background: #0a1420;
+    border: round #00e5ff;
+}
+
+#backup-title {
+    color: #00e5ff;
+    text-style: bold;
+    padding: 0 0 1 0;
+}
+
+#backup-hint {
+    padding: 0 0 1 0;
+}
+
+#backup-dir-row {
+    height: auto;
+}
+
+#backup-dir {
+    width: 1fr;
+    margin: 0;
+}
+
+#backup-reveal {
+    width: auto;
+    min-width: 8;
+    margin: 0 0 0 1;
+    background: #0e3340;
+    color: #00e5ff;
+    border: round #19f0d4;
+}
+
+#backup-reveal:hover {
+    background: #00e5ff;
+    color: #05080d;
+}
+
+#backup-actions {
+    height: auto;
+    margin: 1 0 0 0;
+}
+
+#backup-run {
+    width: auto;
+    margin: 0 1 0 0;
+    background: #0e3340;
+    color: #00e5ff;
+    border: round #00e5ff;
+    text-style: bold;
+}
+
+#backup-run:hover {
+    background: #00e5ff;
+    color: #05080d;
+}
+
+#backup-run:disabled {
+    color: #7ab8cc;
+    text-style: none;
+}
+
+#backup-close {
+    width: auto;
+    background: #0a1420;
+    color: #7ab8cc;
+    border: round #103040;
+}
+
+#backup-close:hover {
+    background: #0e3340;
+    color: #00e5ff;
+}
+
+#backup-status {
+    padding: 1 0 0 0;
+}

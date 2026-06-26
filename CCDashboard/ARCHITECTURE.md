@@ -31,6 +31,8 @@ CCDashboard/
     editor.py              open_in_editor(path) — open a config file in VS Code (CLI) or
                            the OS default (cross-platform: startfile / xdg-open / open);
                            used by the Config tab's Enter action.
+    backup.py              backup_claude(config_dir, backup_dir) -> timestamped copy of
+                           ~/.claude; load/save the backup-dir setting (skips locked files).
     tui/
       __init__.py
       app.py               CCDashboardApp (Textual App): Header, pyfiglet banner,
@@ -44,6 +46,8 @@ CCDashboard/
                            Linux terminal / macOS osascript).
       quiz_view.py         QuizView — question Static + answer TextArea + Submit;
                            gen/grade in @work workers; graceful no-key panel.
+      backup_screen.py     BackupScreen (ModalScreen) — backup-dir field (masked +
+                           reveal toggle) + "Back up now"; opened by Config's ctrl+b.
       app.tcss             Cyan/teal "Jarvis" theme.
   tests/                   First pytest suite — pure-engine units + a light Pilot smoke.
   requirements.txt         textual / rich / pyfiglet / anthropic (pinned, pip-audit-clean).
@@ -168,6 +172,26 @@ UI-agnostic, pure stdlib except a LAZY `anthropic` import inside the two Claude 
 - `gen_question(card) -> str` / `grade_answer(card, q, ans) -> QuizGrade` — Claude
   (`claude-opus-4-8`; `grade_answer` uses `messages.parse` structured output). Both raise
   `QuizUnavailable` when `ANTHROPIC_API_KEY` is unset, which the view shows as a panel.
+
+### `ccdashboard/backup.py` — full-tree backup of `~/.claude`
+Pure stdlib; no Textual. Persists the backup directory as a user setting and copies the
+whole config dir into a timestamped folder.
+- `DEFAULT_BACKUP_DIR` — default backup root (`~/Backup Claude Code`).
+- `settings_path() -> Path` — the settings file, `~/.claude/ccdashboard/settings.json`
+  (outside the repo, never committed).
+- `load_settings(path=None) -> dict` / `save_settings(settings, path=None)` —
+  round-trippable JSON read/write (atomic), defaulting to `settings_path()`.
+- `get_backup_dir() -> str` / `set_backup_dir(path)` — read / update the persisted backup
+  directory (falls back to `DEFAULT_BACKUP_DIR` when unset).
+- `backup_claude(config_dir, backup_dir, *, dry_run=False) -> {dest, files, bytes, skipped, errors}`
+  — copies `config_dir` into `dest = <backup_dir>/claude-backup-<timestamp>` (timestamp
+  `YYYY-MM-DD_HH-MM-SS`); recursion-guarded (raises `ValueError` / refuses the whole backup if the backup dir
+  resolves inside the config dir) and robust to locked/unreadable files (collected in `skipped` / `errors`,
+  never fatal). `dry_run=True` returns the plan without copying.
+
+The TUI companion `ccdashboard/tui/backup_screen.py` (`BackupScreen`, a Textual
+`ModalScreen`) is opened by the Config tab's `ctrl+b`: it shows the backup directory
+(masked, with a reveal toggle) and a **Back up now** button, then calls `backup_claude`.
 
 ### `ccdashboard/tui/app.py` — `CCDashboardApp(App)` / `run(config_dir)`
 `CSS_PATH = "app.tcss"`. Composes Header (clock), a `pyfiglet` banner Static, a
