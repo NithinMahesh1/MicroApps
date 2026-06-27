@@ -24,6 +24,16 @@ id_ed25519.pub
 *.jks
 
 # ============================================================
+# App data / persistent state — machine-specific, NEVER commit
+# TodoTUI persists its tasks to ~/.local/share/todo-tui (OUTSIDE the repo).
+# These rules are defense-in-depth: never commit task data even if it is ever
+# written next to the app (the launcher runs it with cwd = TodoTUI/).
+# ============================================================
+**/tasks.json
+**/tasks.json.bak
+TodoTUI/*.tmp
+
+# ============================================================
 # .NET build output (meeting-notes-overlay)
 # ============================================================
 [Bb]in/

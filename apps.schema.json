@@ -93,7 +93,7 @@
         "launchMode": {
           "type": "string",
           "enum": ["gui", "console", "fire-and-forget"],
-          "description": "gui = own window; console = new interactive console (CREATE_NEW_CONSOLE); fire-and-forget = detached, not tracked."
+          "description": "gui = own window; console = new interactive console window (a new console on Windows via CREATE_NEW_CONSOLE, a new terminal-emulator window on Linux/macOS); fire-and-forget = detached, not tracked."
         },
         "stoppable": { "type": "boolean", "description": "Whether the launcher offers a Stop action. Must be false when launchMode is fire-and-forget." },
         "configFile": {

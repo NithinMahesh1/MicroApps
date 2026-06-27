@@ -1,0 +1,3 @@
+# Todo TUI dependencies — pinned to the pip-audit-clean version shared with the
+# AppLauncher / CCDashboard. The app is otherwise pure stdlib.
+textual==8.2.7

@@ -97,6 +97,30 @@
         { "type": "python", "minVersion": "3.11" }
       ],
       "docs": "CCDashboard/README.md"
+    },
+    {
+      "id": "todo-tui",
+      "name": "Todo TUI",
+      "description": "A simple terminal to-do manager with tabbed Todo/Completed views; tasks persist to ~/.local/share/todo-tui.",
+      "stack": "python",
+      "icon": "✅",
+      "cwd": "TodoTUI",
+      "prepare": {
+        "cmd": ["pip", "install", "-r", "requirements.txt"],
+        "sentinel": null
+      },
+      "launch": {
+        "cmd": ["python", "todo_tui.py"]
+      },
+      "launchMode": "console",
+      "stoppable": true,
+      "configFile": null,
+      "configTemplate": null,
+      "configSchema": null,
+      "prerequisites": [
+        { "type": "python", "minVersion": "3.10" }
+      ],
+      "docs": "TodoTUI/README.md"
     }
   ]
 }

@@ -12,6 +12,7 @@ configures and runs any of them from one place — regardless of stack.
 | [**ClaudePanes**](ClaudePanes/) | Python CLI | Opens multi‑pane Claude Code terminal layouts from a TOML file (Windows Terminal / WezTerm / tmux / Zellij). |
 | [**ClaudeBench**](ClaudeBench/) | Python CLI | Measures the token footprint of your `~/.claude` config (skills/agents/memory/rules) — free static `count_tokens` plus optional empirical runs; CLI + Markdown report. |
 | [**CCDashboard**](CCDashboard/) | Python (Textual TUI) | "Jarvis" console for your `~/.claude`: searchable config (Enter opens the file in VS Code), relevance-ranked conversation search (operators, filters, fuzzy, highlighted preview) + resume, and a daily Claude‑graded **QuizMe**. |
+| [**TodoTUI**](TodoTUI/) | Python (Textual TUI) | A simple terminal to‑do manager with tabbed **Todo** / **Completed** views; tasks persist to `~/.local/share/todo-tui`. |
 
 ## Launcher
 
@@ -32,6 +33,12 @@ python launcher.py --list     # list registered apps
 The engine and `--check`/`--list` are **stdlib‑only**; only the interactive TUI needs
 the dependencies above (all `pip-audit`‑clean and version‑pinned).
 
+**Cross‑platform launching:** a `console` app opens in a new console window on
+Windows, and in its **own new terminal‑emulator window** on Linux/macOS — so a
+full‑screen app never shares (and corrupts) the launcher's terminal. On Linux the
+launcher auto‑detects `ptyxis`, `gnome-terminal`, `konsole`, `kitty`, `alacritty`,
+`xterm`, and more (or honors `$TERMINAL`); macOS uses `Terminal.app`.
+
 ## Configuration & secrets
 
 All sensitive or machine‑specific settings live in the **git‑ignored**
@@ -43,10 +50,14 @@ use the launcher's **Config** button), and you're set — see
 
 ## Requirements
 
-- Windows 10 (build 19041+) / Windows 11
-- Python 3.11+ — MeetingTracker, ClaudePanes, ClaudeBench, CCDashboard, the launcher
+- Windows 10 (build 19041+) / Windows 11, **or** Linux / macOS — the launcher and the
+  Python apps are cross‑platform (MeetingNotesOverlay is Windows‑only)
+- Python 3.11+ — MeetingTracker, ClaudePanes, ClaudeBench, CCDashboard, TodoTUI, the launcher
 - .NET 10 SDK — MeetingNotesOverlay
-- A terminal multiplexer for ClaudePanes (e.g. Windows Terminal)
+- A terminal multiplexer for ClaudePanes (e.g. Windows Terminal, tmux, WezTerm, Zellij)
+- On Linux/macOS, a terminal emulator for `console` apps — the launcher opens each in its
+  own window (auto‑detects `ptyxis`, `gnome-terminal`, `konsole`, `kitty`, `alacritty`,
+  `xterm`, …; or set `$TERMINAL`)
 - `ANTHROPIC_API_KEY` (optional) — enables CCDashboard's QuizMe and ClaudeBench's real `count_tokens` numbers
 
 ## Layout
@@ -60,4 +71,5 @@ MeetingNotesOverlay/           .NET 10 WinUI 3 capture-proof overlay
 ClaudePanes/                   Python terminal-layout launcher
 ClaudeBench/                   Python ~/.claude token-footprint benchmarker (CLI + report)
 CCDashboard/                   Python Textual TUI for ~/.claude (config + conversations + QuizMe)
+TodoTUI/                       Python Textual to-do manager (tabbed Todo/Completed)
 ```

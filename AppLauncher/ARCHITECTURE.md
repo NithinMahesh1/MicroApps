@@ -16,6 +16,7 @@ AppLauncher/
     manifest.py            # load + validate apps.json -> Registry
     prerequisites.py       # detect runtimes; PrereqResult
     process_manager.py     # spawn/track/stop per launchMode; accepts extra_args
+    terminal.py            # POSIX: open a console app in its own terminal window
     prepare.py             # build-once sentinel + run prepare
     arg_picker.py          # discover file choices for argPicker (glob → ArgChoice list)
     config/
@@ -37,7 +38,7 @@ AppLauncher/
 ## Hard rules
 - **Python 3.11+**, PEP 8, **type annotations on every signature**, `from __future__ import annotations` at the top of every module.
 - **Immutability:** never mutate inputs; return new objects. Models are frozen dataclasses.
-- **Engine modules** (`paths`, `manifest`, `prerequisites`, `process_manager`, `prepare`, `config/*`) **must NOT import `textual`** — stdlib only (`manifest.py` may *optionally* use `jsonschema` with a stdlib fallback). This keeps `--check` runnable without the TUI deps.
+- **Engine modules** (`paths`, `manifest`, `prerequisites`, `process_manager`, `terminal`, `prepare`, `config/*`) **must NOT import `textual`** — stdlib only (`manifest.py` may *optionally* use `jsonschema` with a stdlib fallback). This keeps `--check` runnable without the TUI deps.
 - All manifest paths are **relative + forward-slash**; resolve via `pathlib` then `.resolve()`.
 - Files ≤ 400 lines. Add a module docstring.
 
@@ -86,15 +87,21 @@ AppLauncher/
 
 ## `process_manager.py`
 - `class ProcessManager:` holds `self._procs: dict[str, subprocess.Popen]`.
-  - `launch(self, root: Path, app: App, extra_args: Sequence[str] = ()) -> None` — build argv via `paths.resolve_command`; append `extra_args` after the resolved command; spawn with `cwd=resolve_cwd(...)`. Windows creation flags by `app.launch_mode`:
-    - `console` -> `CREATE_NEW_CONSOLE`; store handle under `app.id`.
-    - `gui` -> flags `0` (no redirection); store handle.
-    - `fire-and-forget` -> `DETACHED_PROCESS | CREATE_NO_WINDOW`; do **not** store.
-    - Use `getattr(subprocess, "CREATE_NEW_CONSOLE", 0)` etc. so it imports on non-Windows. Never redirect stdio.
+  - `launch(self, root: Path, app: App, extra_args: Sequence[str] = ()) -> None` — build argv via `paths.resolve_command`; append `extra_args` after the resolved command; spawn with `cwd=resolve_cwd(...)`. Dispatches on the host OS:
+    - **Windows** (`_spawn_windows`): creation flags by `app.launch_mode` — `console` -> `CREATE_NEW_CONSOLE`; `gui` -> `0`; `fire-and-forget` -> `DETACHED_PROCESS | CREATE_NO_WINDOW`. Uses `getattr(subprocess, "CREATE_NEW_CONSOLE", 0)` etc. so the module imports on non-Windows.
+    - **POSIX** (`_spawn_posix`): a `console` app is wrapped via `terminal.wrap(cwd, argv)` so it runs in its **own terminal-emulator window** — otherwise it would share (and corrupt) the launcher's TTY, garbling the display and crashing the input thread with `OSError: [Errno 5]` on quit. `gui`/`fire-and-forget` run the command directly. Every POSIX spawn uses `start_new_session=True` and redirects std streams to `DEVNULL` (detaches from the launcher's controlling terminal and keeps stray output from corrupting the Textual display; an app inside a terminal window gets that window's PTY).
+    - Track the handle under `app.id` unless `fire-and-forget`.
   - `status(self, app_id: str) -> str` — `"running"` if a stored handle has `poll() is None`, else `"stopped"`.
-  - `stop(self, app_id: str) -> None` — if tracked: `terminate()`, wait up to ~3s, then `kill()`; drop the handle. No-op if untracked.
+  - `stop(self, app_id: str) -> None` — if tracked and alive, `_terminate`; drop the handle. No-op if untracked.
+  - `_terminate(proc)` — Windows: `terminate()`, wait ~3s, then `kill()`. POSIX: `os.killpg` the child's session with `SIGTERM`, wait ~3s, then `SIGKILL`, so a terminal-launched app dies together with its window.
   - `is_running(self, app_id: str) -> bool`.
-- Pure stdlib (`subprocess`, `sys`). Must import cleanly on any OS (guard flags).
+- Pure stdlib (`subprocess`, `sys`, `os`, `signal`) + the sibling `terminal` module. Must import cleanly on any OS (platform-specific calls are guarded).
+
+## `terminal.py`
+- POSIX helper that opens a command in a **new terminal-emulator window** (Windows uses `CREATE_NEW_CONSOLE` instead). Pure stdlib; never imports `textual`.
+- `class TerminalNotFound(OSError)` — raised when no terminal is available; subclasses `OSError` so existing `except OSError` launch handling surfaces it with a helpful message.
+- `wrap(cwd: str, argv: Sequence[str]) -> list[str]` — the full argv that runs `argv` in a new window under `cwd`. Honors `$TERMINAL`, else the first available of a priority list (`ptyxis`, `gnome-terminal`, `kgx`, `konsole`, `xfce4-terminal`, `tilix`, `kitty`, `alacritty`, `foot`, `wezterm`, `terminator`, `x-terminal-emulator`, `xterm`). Each invocation is chosen so the spawned process **stays in the foreground** for the window's lifetime (e.g. `ptyxis --standalone`, `gnome-terminal --wait`, `konsole --nofork`), so `poll()`/`terminate()` tracking keeps working. macOS falls back to `osascript` + `Terminal.app` (best-effort, untracked).
+- `chosen_terminal() -> str | None` — the terminal `wrap` would use (diagnostics).
 
 ## `prepare.py`
 - `needs_prepare(root: Path, app: App) -> bool` — `False` if `app.prepare is None`; `True` if no `sentinel`; else `not resolve_in_cwd(root, app, sentinel).exists()`.
