@@ -133,9 +133,12 @@ ClaudeBench's `scanner.py` is imported read-only.
     (`CF_UNICODETEXT` via ctypes), and replays Win → "powershell" → Ctrl+Shift+Enter
     (`keybd_event`) to open the user's own admin terminal — they paste it (UIPI forbids
     typing into an elevated window, so delivery is via clipboard).
-  - **Linux**: spawns the first installed terminal (`x-terminal-emulator`,
-    `gnome-terminal` [uses `--`], `konsole`, …, `xterm`) running `bash -lc 'cd <cwd>;
-    <claude> --resume <sid>; exec bash'`; raises `RuntimeError` if none is found.
+  - **Linux**: spawns (detached — `start_new_session` + `/dev/null` stdio) the first
+    installed terminal of `_LINUX_TERMINALS` (`x-terminal-emulator`, `ptyxis`,
+    `gnome-terminal`, `kgx`, `konsole`, …, `xterm`) running `bash -lc 'cd <cwd>;
+    <claude> --resume <sid>; exec bash'`. Per-emulator flags differ: ptyxis uses
+    `--standalone --new-window --`, gnome-terminal/kgx use `--`, kitty/foot take the
+    command directly, the rest use `-e`. Raises `RuntimeError` if none is found.
   - **macOS**: runs the same command in Terminal.app via `osascript`.
   cwd + claude path are shell-quoted (`''` for the PowerShell literal, `shlex.quote` on
   POSIX). `dry_run=True` returns the plan (off-Windows it adds `mode`/`platform`/`argv`)
