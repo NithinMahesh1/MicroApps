@@ -341,14 +341,18 @@ def _open_admin_terminal_via_search() -> None:
 
 # Linux terminal emulators we try, in order; the first one ``shutil.which`` finds
 # hosts the resume. ``x-terminal-emulator`` is Debian's "default terminal" alternative;
-# the rest are common concrete emulators.
+# ``ptyxis`` is the modern GNOME/Fedora default and ``kgx`` is GNOME Console; the rest
+# are common concrete emulators.
 _LINUX_TERMINALS: tuple[str, ...] = (
     "x-terminal-emulator",
+    "ptyxis",
     "gnome-terminal",
+    "kgx",
     "konsole",
     "xfce4-terminal",
     "alacritty",
     "kitty",
+    "foot",
     "xterm",
 )
 
@@ -378,13 +382,22 @@ def _linux_resume_argv(
 ) -> list[str]:
     """Argv that opens ``term`` running the resume, then drops to an interactive shell.
 
-    gnome-terminal takes the command after ``--``; every other supported emulator
-    takes it after ``-e``. ``exec bash`` keeps the window open after Claude exits so
-    the user isn't dropped immediately.
+    Emulators disagree on how to pass a command: ptyxis / gnome-terminal / kgx take it
+    after ``--`` (ptyxis also needs ``--standalone`` so it spawns its own window rather
+    than handing off to the D-Bus service and exiting); kitty / foot take it directly;
+    the rest take it after ``-e``. ``exec bash`` keeps the window open after Claude exits
+    so the user isn't dropped immediately.
     """
     inner = f"{_posix_shell_command(cwd, claude_exe, session_id)}; exec bash"
-    flag = "--" if os.path.basename(term) == "gnome-terminal" else "-e"
-    return [term, flag, "bash", "-lc", inner]
+    cmd = ["bash", "-lc", inner]
+    name = os.path.basename(term)
+    if name == "ptyxis":
+        return [term, "--standalone", "--new-window", "--", *cmd]
+    if name in ("gnome-terminal", "kgx"):
+        return [term, "--", *cmd]
+    if name in ("kitty", "foot"):
+        return [term, *cmd]
+    return [term, "-e", *cmd]
 
 
 def _macos_resume_argv(cwd: str, claude_exe: str, session_id: str) -> list[str]:
@@ -493,7 +506,15 @@ def launch_resume(
     else:
         import subprocess
 
-        subprocess.Popen(plan["argv"])
+        # Detach: own session + no inherited stdio, so the spawned terminal never
+        # corrupts CCDashboard's own TUI and survives if the dashboard exits.
+        subprocess.Popen(
+            plan["argv"],
+            start_new_session=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     return plan
 
 

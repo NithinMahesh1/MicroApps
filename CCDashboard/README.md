@@ -113,7 +113,7 @@ highlighted.
   command to the clipboard and replays Win → `powershell` → Ctrl+Shift+Enter to open your
   admin terminal (Windows blocks apps from typing into an elevated window — hence the paste);
   **Linux** spawns the first installed terminal emulator (`x-terminal-emulator`,
-  `gnome-terminal`, `konsole`, …) running it; **macOS** runs it in Terminal.app via
+  `ptyxis`, `gnome-terminal`, `konsole`, …) running it (detached); **macOS** runs it in Terminal.app via
   `osascript`. It only resumes a session present in the index and takes the working directory
   from the transcript — never user input; the cwd + claude path are shell-quoted.
 - **Platform support** — the **Config inventory and the conversation search / filter /
