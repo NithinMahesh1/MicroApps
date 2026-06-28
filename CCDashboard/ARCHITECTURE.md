@@ -26,8 +26,10 @@ CCDashboard/
                            ~/.claude/projects/**/*.jsonl (indexing + cross-platform resume).
     search.py              UI-agnostic search engine: parse_query / merge_ui_filters /
                            rank (relevance+recency) / highlight — no Textual.
-    quiz.py                load_cards() (split notes into SM-2 cards) / review() +
-                           selection / gen_question() + grade_answer() (Claude).
+    quiz.py                load_all_cards() (split notes from configurable folder(s) into
+                           SM-2 cards) / notes-dir config / review() + selection /
+                           gen_question() + grade_answer() (Claude).
+    folder_picker.py       Native OS folder picker (zenity/kdialog/yad) — choose notes dirs.
     editor.py              open_in_editor(path) — open a config file in VS Code (CLI) or
                            the OS default (cross-platform: startfile / xdg-open / open);
                            used by the Config tab's Enter action.
@@ -44,8 +46,12 @@ CCDashboard/
                            DataTable, highlighted preview pane; ranks via search.py;
                            row-select -> launch_resume (per-OS: Win clipboard+keystroke /
                            Linux terminal / macOS osascript).
-      quiz_view.py         QuizView — question Static + answer TextArea + Submit;
-                           gen/grade in @work workers; graceful no-key panel.
+      quiz_view.py         QuizView — question Static + answer TextArea + Submit + Notes
+                           folders… (ctrl+o); gen/grade in @work workers; graceful no-key
+                           and no-notes panels.
+      notes_config_screen.py  NotesConfigScreen (ModalScreen) — view/add/remove notes
+                           folders via the OS picker (worker thread) or a typed path; Save
+                           persists via quiz.save_notes_dirs.
       backup_screen.py     BackupScreen (ModalScreen) — backup-dir field (masked +
                            reveal toggle) + "Back up now"; opened by Config's ctrl+b.
       app.tcss             Cyan/teal "Jarvis" theme.
@@ -61,7 +67,7 @@ CCDashboard/
 ```
 on_mount ──▶ @work(thread, exclusive): scan.build_view_model(config_dir)
           │                            conversations.index_conversations()
-          │                            quiz.load_cards() + quiz.load_state()
+          │                            quiz.load_all_cards() + quiz.load_state()
           └▶ call_from_thread ──▶ ConfigView.load_items(vm)
                                   ConversationsView.load_conversations(convos)
                                   QuizView.load_quiz(cards, state)
@@ -83,6 +89,8 @@ Enter on a conversation row ──▶ ConversationsView._resume (@work thread)
 QuizMe ──▶ load_quiz picks today's card ─▶ @work gen_question (Claude) ─▶ answer ─▶
            ctrl+s ─▶ @work grade_answer (Claude, structured) ─▶ apply_grade (SM-2)
            ─▶ save_state.
+           Notes folders… (ctrl+o) ─▶ NotesConfigScreen ─▶ folder_picker (@work) ─▶
+           quiz.save_notes_dirs ─▶ reload cards.
 ```
 
 Indexing 100+ transcripts (and reading the study notes) runs off the UI thread; results
@@ -163,8 +171,13 @@ nothing about Textual. The CONVERSATIONS view builds a `Query` and calls these:
 ### `ccdashboard/quiz.py`
 UI-agnostic, pure stdlib except a LAZY `anthropic` import inside the two Claude calls
 (so importing the module — and the TUI — never needs the SDK or network).
-- `load_cards(notes_dir=None) -> list[Card]` — split every `*.md` under
-  `~/Learning/Codebase` into frozen `Card`s (per `##`/`###` section, else whole file).
+- `load_cards(notes_dir=None) -> list[Card]` — split every `*.md` under one folder into
+  frozen `Card`s (per `##`/`###` section, else whole file).
+- `load_all_cards(notes_dirs=None) -> list[Card]` — cards from every configured folder
+  (deduped by id); `notes_dirs` defaults to `load_notes_dirs()`.
+- Notes-dir config (OUTSIDE the repo): `load_notes_dirs()` resolves
+  `~/.claude/ccdashboard/config.json` (`notesDirs`) → `CCDASHBOARD_NOTES_DIR` env →
+  `~/Learning/Codebase`; `save_notes_dirs(dirs)` persists the list (managed by the UI).
 - SM-2 scheduling (pure): `review(state, quality, today)`, `select_today(...)`,
   `bump_streak(...)`, `apply_grade(...)` — all return NEW immutable state.
 - `load_state()/save_state()` — round-trippable JSON written atomically OUTSIDE the repo
@@ -172,6 +185,13 @@ UI-agnostic, pure stdlib except a LAZY `anthropic` import inside the two Claude 
 - `gen_question(card) -> str` / `grade_answer(card, q, ans) -> QuizGrade` — Claude
   (`claude-opus-4-8`; `grade_answer` uses `messages.parse` structured output). Both raise
   `QuizUnavailable` when `ANTHROPIC_API_KEY` is unset, which the view shows as a panel.
+
+### `ccdashboard/folder_picker.py` — native OS folder picker
+Pure stdlib (subprocess); no Textual. `pick_directories(start=None) -> list[Path]` opens
+the first available of `zenity`/`kdialog`/`yad`/`qarma` (multi-select where supported),
+returning the chosen dirs (or `[]` on cancel) and raising `PickerUnavailable` when none is
+installed. MUST be called from a worker thread (it blocks on the dialog). Used by
+`NotesConfigScreen` to let the user choose QuizMe's notes folder(s).
 
 ### `ccdashboard/backup.py` — full-tree backup of `~/.claude`
 Pure stdlib; no Textual. Persists the backup directory as a user setting and copies the

@@ -17,9 +17,11 @@ A futuristic **terminal (TUI)** console for your global Claude Code setup
   **Enter** on a result to resume it in your terminal (Windows: the command is copied to your
   clipboard and your admin terminal opens via Start → "powershell" → Ctrl+Shift+Enter to
   paste; Linux/macOS: a terminal opens running `claude --resume` directly).
-- **QuizMe** — one Claude-generated question per day from your study notes
-  (`Learning\Codebase\**\*.md`), Claude-graded, with SM-2 spaced repetition and a
-  daily streak. Needs `ANTHROPIC_API_KEY` (shows a friendly prompt until you set it).
+- **QuizMe** — one Claude-generated question per day from your study notes,
+  Claude-graded, with SM-2 spaced repetition and a daily streak. Needs
+  `ANTHROPIC_API_KEY` (shows a friendly prompt until you set it). **Choose which
+  folder(s) your `*.md` notes live in from inside the app** — **Notes folders…**
+  (`ctrl+o`) opens your OS folder picker and supports several directories.
 
 The config inventory reuses ClaudeBench's scanner; the conversation search + quiz
 engines are their own. The conversation search engine lives in its own UI-agnostic
@@ -36,6 +38,10 @@ keeps indexing + resume. All are UI-agnostic, so the UI can change without touch
   Without it the other tabs work fully and QuizMe shows a "set the key" prompt.
   Set it persistently on Windows (user scope), then restart your terminal:
   `[Environment]::SetEnvironmentVariable('ANTHROPIC_API_KEY', 'sk-ant-...', 'User')`
+- **QuizMe notes folder(s):** by default QuizMe reads `*.md` from `~/Learning/Codebase`.
+  Point it anywhere from inside the app — **Notes folders…** (`ctrl+o`) opens your OS
+  picker and supports multiple folders — or set `CCDASHBOARD_NOTES_DIR`
+  (os-path-separated). The in-app choice is saved to `~/.claude/ccdashboard/config.json`.
 - **Optional:** run a ClaudeBench `snapshot` first to populate the token-cost columns.
   Without one, the Config tab still lists everything; token fields show `—`.
 
@@ -72,6 +78,7 @@ python cc_dashboard.py --config-dir <path>   # scan a different config dir
 | `ctrl+b` | (Config) back up `~/.claude` to a dated folder |
 | `Enter` | (Conversations) resume the selected chat in a terminal (Windows: admin terminal, then Ctrl+V to paste) |
 | `ctrl+s` | (QuizMe) submit your answer |
+| `ctrl+o` | (QuizMe) choose study-notes folder(s) — opens your OS picker |
 | `ctrl+r` | refresh (re-scan config + re-index conversations) |
 | `q` | quit |
 
@@ -120,9 +127,14 @@ highlighted.
   entirely in memory over precomputed lowercased fields (title/body/project/branch) and
   parsed dates, so ranking, filtering, fuzzy matching, and the preview stay instant as
   chats grow. The search engine itself is UI-agnostic in `ccdashboard/search.py`.
-- **QuizMe** stores scheduling state **outside the repo** at
-  `~/.claude/ccdashboard/quizme.json` (never committed). It needs `ANTHROPIC_API_KEY`;
-  until then the tab shows a prompt instead of erroring.
+- **QuizMe** reads `*.md` study notes from one or more folders and stores its
+  scheduling state **outside the repo** at `~/.claude/ccdashboard/quizme.json` (never
+  committed). The notes folder(s) are configurable, resolved in order from
+  `~/.claude/ccdashboard/config.json` (`notesDirs`, managed by the in-app **Notes
+  folders…** picker), else `CCDASHBOARD_NOTES_DIR`, else the default
+  `~/Learning/Codebase`. The picker uses your OS dialog (`zenity`/`kdialog`/`yad`) with
+  a typed-path fallback. It needs `ANTHROPIC_API_KEY`; until then the tab shows a prompt
+  instead of erroring.
 - **Backup** — from the Config tab, **`ctrl+b`** opens a dialog that copies your entire
   `~/.claude` into a dated folder `claude-backup-YYYY-MM-DD_HH-MM-SS` under a configurable
   backup directory (default `~/Backup Claude Code`); locked/unreadable files are skipped
@@ -141,16 +153,18 @@ CCDashboard/
     scan.py                build_view_model(config_dir) -> config inventory (reuses ClaudeBench)
     conversations.py       index_conversations / launch_resume (indexing + cross-platform resume)
     search.py              parse_query / merge_ui_filters / rank / highlight (UI-agnostic)
-    quiz.py                load_cards / SM-2 schedule / gen_question + grade_answer (Claude)
+    quiz.py                load_all_cards (multi-dir) / notes-dir config / SM-2 / gen_question + grade_answer (Claude)
+    folder_picker.py       native OS folder picker (zenity/kdialog/yad) for choosing notes dirs
     backup.py              get_backup_dir / set_backup_dir / backup_claude -> dated ~/.claude copy
     tui/
       app.py               CCDashboardApp — Header, pyfiglet banner, 3 tabs, Footer
       config_view.py       Config tab (search + DataTable)
       conversations_view.py  Conversations tab (filter row + search + DataTable + preview + resume)
-      quiz_view.py         QuizMe tab (question + answer TextArea + Claude grading)
+      quiz_view.py         QuizMe tab (question + answer TextArea + Claude grading + Notes folders…)
+      notes_config_screen.py  Notes-folders dialog (ModalScreen): add/remove dirs via the OS picker
       backup_screen.py     Backup dialog (ModalScreen) opened by Config's ctrl+b
       app.tcss             cyan/teal "Jarvis" theme
-  tests/                   pytest suite (search/conversations units + a light view smoke)
+  tests/                   pytest suite (search/conversations/quiz-config units + view + notes-dialog smokes)
   requirements.txt         textual / rich / pyfiglet / anthropic (pinned, pip-audit-clean)
   requirements-dev.txt     pytest (pinned, pip-audit-clean)
 ```

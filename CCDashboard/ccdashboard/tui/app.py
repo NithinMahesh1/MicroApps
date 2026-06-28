@@ -75,7 +75,7 @@ class CCDashboardApp(App):
         """
         vm = scan.build_view_model(self._ccd_config_dir)
         convos = conversations.index_conversations()
-        cards = quiz.load_cards()
+        cards = quiz.load_all_cards()
         state = quiz.load_state()
         self.call_from_thread(self._populate, vm, convos, cards, state)
 

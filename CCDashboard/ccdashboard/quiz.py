@@ -283,18 +283,109 @@ def load_state(path: Path | None = None) -> QuizState:
     return QuizState.from_dict(data)
 
 
-def save_state(state: QuizState, path: Path | None = None) -> None:
-    """Atomically write the store, creating ~/.claude/ccdashboard on first use."""
-    p = path or _store_path()
+def _write_json_atomic(p: Path, obj: Any) -> None:
+    """Atomically write *obj* as pretty JSON, creating parent dirs on first use."""
     p.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(p.parent), suffix=".json.tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(state.to_dict(), fh, indent=2)
+            json.dump(obj, fh, indent=2)
         os.replace(tmp, p)
     finally:
         if os.path.exists(tmp):
             os.unlink(tmp)
+
+
+def save_state(state: QuizState, path: Path | None = None) -> None:
+    """Atomically write the store, creating ~/.claude/ccdashboard on first use."""
+    _write_json_atomic(path or _store_path(), state.to_dict())
+
+
+# --------------------------------------------------------------------------- #
+# Notes-directory configuration (OUT OF REPO; managed by the QuizMe UI)
+# --------------------------------------------------------------------------- #
+
+_NOTES_DIR_ENV = "CCDASHBOARD_NOTES_DIR"
+
+
+def _config_path() -> Path:
+    return Path.home() / ".claude" / "ccdashboard" / "config.json"
+
+
+def expand_dir(raw: str) -> Path:
+    """Expand ``~`` and ``$ENV`` vars in a configured path string."""
+    return Path(os.path.expanduser(os.path.expandvars(raw)))
+
+
+def _dedup_dirs(dirs: list[Path]) -> list[Path]:
+    seen: set[str] = set()
+    out: list[Path] = []
+    for d in dirs:
+        if str(d) not in seen:
+            seen.add(str(d))
+            out.append(d)
+    return out
+
+
+def _read_config() -> dict[str, Any]:
+    try:
+        data = json.loads(_config_path().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _env_notes_dirs() -> list[Path]:
+    raw = os.environ.get(_NOTES_DIR_ENV, "")
+    return [expand_dir(p) for p in raw.split(os.pathsep) if p.strip()]
+
+
+def load_notes_dirs() -> list[Path]:
+    """Configured study-notes folders, in priority order:
+
+    1. ``notesDirs`` in ~/.claude/ccdashboard/config.json (managed by the UI),
+    2. else the ``CCDASHBOARD_NOTES_DIR`` env var (os.pathsep-separated),
+    3. else the legacy default (~/Learning/Codebase).
+
+    Paths are ~/env-expanded and de-duplicated. Existence is NOT required here;
+    missing folders simply contribute no cards.
+    """
+    raw = _read_config().get("notesDirs")
+    if isinstance(raw, list):
+        dirs = [expand_dir(p) for p in raw if isinstance(p, str) and p.strip()]
+        if dirs:
+            return _dedup_dirs(dirs)
+    env = _env_notes_dirs()
+    if env:
+        return _dedup_dirs(env)
+    return [_default_notes_dir()]
+
+
+def save_notes_dirs(dirs: list[Path] | list[str]) -> list[Path]:
+    """Persist study-notes folders to the config file (atomic); return the saved
+    list. An empty list clears the setting (falls back to env var / default)."""
+    expanded = _dedup_dirs([expand_dir(str(d)) for d in dirs])
+    cfg = _read_config()
+    cfg["notesDirs"] = [str(d) for d in expanded]
+    _write_json_atomic(_config_path(), cfg)
+    return expanded
+
+
+def load_all_cards(notes_dirs: list[Path] | None = None) -> list[Card]:
+    """Cards from every configured notes folder (deduped by card id).
+
+    ``notes_dirs`` defaults to :func:`load_notes_dirs`. Missing folders are
+    skipped; on a relative-path+heading clash across folders the first wins.
+    """
+    dirs = notes_dirs if notes_dirs is not None else load_notes_dirs()
+    out: list[Card] = []
+    seen: set[str] = set()
+    for d in dirs:
+        for card in load_cards(d):
+            if card.card_id not in seen:
+                seen.add(card.card_id)
+                out.append(card)
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -529,8 +620,9 @@ if __name__ == "__main__":  # offline smoke test (no Claude calls)
             _s.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
         except (AttributeError, ValueError):
             pass
-    _cards = load_cards()
-    print(f"Loaded {len(_cards)} cards from {_default_notes_dir()}")
+    _dirs = load_notes_dirs()
+    _cards = load_all_cards(_dirs)
+    print(f"Loaded {len(_cards)} cards from {[str(d) for d in _dirs]}")
     _st = load_state()
     _today = date.today()
     print(

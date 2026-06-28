@@ -30,6 +30,7 @@ class QuizView(Vertical):
 
     BINDINGS = [
         Binding("ctrl+s", "submit_answer", "Submit answer", show=True),
+        Binding("ctrl+o", "choose_notes", "Notes folders", show=True),
     ]
 
     def __init__(self, **kwargs) -> None:
@@ -45,6 +46,7 @@ class QuizView(Vertical):
         yield Static("", id="quiz-question", classes="quiz-question")
         yield TextArea("", id="quiz-answer", classes="quiz-answer")
         yield Button("Submit  (Ctrl+S)", id="quiz-submit", variant="primary")
+        yield Button("Notes folders…  (Ctrl+O)", id="quiz-notes")
         yield Static("", id="quiz-feedback", classes="quiz-feedback")
 
     # ---- engine hand-off from app._populate ----------------------------- #
@@ -63,10 +65,13 @@ class QuizView(Vertical):
             return
         self._ccd_card = quiz.select_today(state, cards, today)
         if self._ccd_card is None:
+            dirs = quiz.load_notes_dirs()
+            where = "\n".join(f"  • {d}" for d in dirs) or "  • (none configured)"
             self.query_one("#quiz-question", Static).update(
-                "No study notes found.\n\n"
-                "Add Markdown notes under your Learning\\Codebase folder, then "
-                "press Ctrl+R to refresh."
+                "No study notes found in:\n"
+                f"{where}\n\n"
+                "Click “Notes folders…” (Ctrl+O) to choose where your .md notes "
+                "live — you can pick several — and it reloads automatically."
             )
             self._ccd_set_inputs_enabled(False)
             return
@@ -165,6 +170,8 @@ class QuizView(Vertical):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "quiz-submit":
             self._ccd_submit()
+        elif event.button.id == "quiz-notes":
+            self._ccd_open_notes_config()
 
     def _ccd_submit(self) -> None:
         if self._ccd_busy or self._ccd_card is None or not self._ccd_question:
@@ -207,6 +214,26 @@ class QuizView(Vertical):
         )
         self._ccd_refresh_status()
         self._ccd_show_done_for_today()
+
+    # ---- notes-folder configuration ------------------------------------- #
+
+    def action_choose_notes(self) -> None:
+        self._ccd_open_notes_config()
+
+    def _ccd_open_notes_config(self) -> None:
+        from ccdashboard.tui.notes_config_screen import NotesConfigScreen
+        self.app.push_screen(NotesConfigScreen(), self._ccd_on_notes_saved)
+
+    def _ccd_on_notes_saved(self, changed: bool | None) -> None:
+        if changed:
+            self.query_one("#quiz-question", Static).update("Reloading notes…")
+            self._ccd_reload_cards()
+
+    @work(thread=True, exclusive=True, group="quiz-reload")
+    def _ccd_reload_cards(self) -> None:
+        cards = quiz.load_all_cards()
+        state = quiz.load_state()
+        self.app.call_from_thread(self.load_quiz, cards, state)
 
     # ---- focus contract (app calls this on load + tab activation) ------- #
 
