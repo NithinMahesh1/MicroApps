@@ -102,6 +102,25 @@ DataTable > .datatable--odd-row {
     border: round #103040;
 }
 
+/* MEMORIES tab — side-by-side list (left) + full reading pane (right) */
+#mem-body {
+    height: 1fr;
+}
+
+#mem-table {
+    width: 3fr;
+}
+
+#mem-preview {
+    width: 2fr;
+    height: 1fr;
+    margin: 1 2 1 0;
+    padding: 0 1;
+    background: #070b12;
+    color: #cfeffd;
+    border: round #103040;
+}
+
 /* QuizMe tab */
 .quiz-question {
     margin: 1 2;

@@ -1,7 +1,7 @@
 # CCDashboard
 
 A futuristic **terminal (TUI)** console for your global Claude Code setup
-(`~/.claude`), built with [Textual](https://textual.textualize.io/). Three tabs:
+(`~/.claude`), built with [Textual](https://textual.textualize.io/). Four tabs:
 
 - **Config** — searchable inventory of your skills, agents, memory (`CLAUDE.md`),
   rules, and settings. Shows per-item token costs when a ClaudeBench `count_tokens`
@@ -17,16 +17,29 @@ A futuristic **terminal (TUI)** console for your global Claude Code setup
   **Enter** on a result to resume it in your terminal (Windows: the command is copied to your
   clipboard and your admin terminal opens via Start → "powershell" → Ctrl+Shift+Enter to
   paste; Linux/macOS: a terminal opens running `claude --resume` directly).
+- **Memories** — search your per-project Claude **auto-memories** — the Markdown files
+  Claude Code writes under `~/.claude/projects/*/memory/*.md` (each has a `name`,
+  `description`, and `type` in its frontmatter; `MEMORY.md` index files are skipped).
+  Filters mirror Conversations: **Project**, **Type** (derived from your data — e.g.
+  feedback / learning / reference / user / untyped), and **Date** dropdowns. The search
+  box supports the same operators as Conversations plus `type:` — e.g.
+  `project:smart-gift-card`, `type:feedback`, `after:2026-06-01`, and `"exact phrase"`.
+  Side-by-side layout: a searchable list on the left (columns PROJECT, TYPE, NAME,
+  DESCRIPTION) and a **reading pane on the right** showing the full selected memory with
+  matched terms highlighted. Move the cursor to read; press **Enter** to open the `.md`
+  in **VS Code** (OS-default fallback) to edit; **`/`** focuses search; **`ctrl+r`**
+  re-indexes. No API key needed.
 - **QuizMe** — one Claude-generated question per day from your study notes,
   Claude-graded, with SM-2 spaced repetition and a daily streak. Needs
   `ANTHROPIC_API_KEY` (shows a friendly prompt until you set it). **Choose which
   folder(s) your `*.md` notes live in from inside the app** — **Notes folders…**
   (`ctrl+o`) opens your OS folder picker and supports several directories.
 
-The config inventory reuses ClaudeBench's scanner; the conversation search + quiz
-engines are their own. The conversation search engine lives in its own UI-agnostic
+The config inventory reuses ClaudeBench's scanner; the conversation search, memory search,
+and quiz engines are their own. The conversation search engine lives in its own UI-agnostic
 `ccdashboard/search.py` (parsing + ranking + highlighting), while `conversations.py`
-keeps indexing + resume. All are UI-agnostic, so the UI can change without touching them.
+keeps indexing + resume and `memory.py` keeps memory indexing + search. All are
+UI-agnostic, so the UI can change without touching them.
 
 ---
 
@@ -69,7 +82,7 @@ python cc_dashboard.py --config-dir <path>   # scan a different config dir
 
 | Key | Action |
 |-----|--------|
-| `1` / `2` / `3` | switch tabs (Config / Conversations / QuizMe) |
+| `1` / `2` / `3` / `4` | switch tabs (Config / Conversations / Memories / QuizMe) |
 | type | search the active tab |
 | `/` | jump to the search box |
 | `↓` | drop from the search box into the results table |
@@ -77,9 +90,10 @@ python cc_dashboard.py --config-dir <path>   # scan a different config dir
 | `Enter` | (Config) open the selected component's file in VS Code |
 | `ctrl+b` | (Config) back up `~/.claude` to a dated folder |
 | `Enter` | (Conversations) resume the selected chat in a terminal (Windows: admin terminal, then Ctrl+V to paste) |
+| `Enter` | (Memories) open the selected memory's `.md` in VS Code to edit |
 | `ctrl+s` | (QuizMe) submit your answer |
 | `ctrl+o` | (QuizMe) choose study-notes folder(s) — opens your OS picker |
-| `ctrl+r` | refresh (re-scan config + re-index conversations) |
+| `ctrl+r` | refresh (re-scan config + re-index conversations and memories) |
 | `q` | quit |
 
 ---
@@ -103,6 +117,24 @@ field. **Fuzzy matching** (stdlib `difflib`, no extra dependency) means a typo l
 `permisions` still finds `permissions`, ranked below exact hits. The **preview pane**
 under the table shows the matching context for the highlighted row, with your terms
 highlighted.
+
+---
+
+## Searching memories
+
+Type to search; same operators as conversations plus `type:`. Plain terms are AND-matched.
+
+| Operator | Effect |
+|----------|--------|
+| `project:foo` / `dir:foo` | only memories from projects whose directory contains `foo` |
+| `type:bar` | only memories whose frontmatter `type` contains `bar` (e.g. `type:feedback`) |
+| `after:2026-06-01` | memories whose file was last modified on/after that date |
+| `before:2026-06-30` | memories last modified on/before that date |
+| `"exact phrase"` | match the quoted phrase contiguously |
+
+The **Project**, **Type**, and **Date** dropdowns do the same as `project:`, `type:`, and
+`after:` for the common cases; a typed operator wins over the dropdown for the same field.
+The **reading pane** on the right shows the full memory with your search terms highlighted.
 
 ---
 
@@ -135,6 +167,13 @@ highlighted.
   `~/Learning/Codebase`. The picker uses your OS dialog (`zenity`/`kdialog`/`yad`) with
   a typed-path fallback. It needs `ANTHROPIC_API_KEY`; until then the tab shows a prompt
   instead of erroring.
+- **Memories** reads `~/.claude/projects/*/memory/*.md` read-only, skipping `MEMORY.md`
+  (the per-project index). The engine in `memory.py` indexes name, description, type, and
+  full content; `type` is derived from each file's frontmatter and drives the Type
+  dropdown. Indexing runs in a background thread; search is debounced and runs in-memory,
+  so filtering and the reading pane stay instant as the memory count grows. Press **Enter**
+  on a row to open the `.md` in VS Code (same cross-platform fallback as Config: `code`
+  CLI → `xdg-open` / `open`). No new dependencies and no API key needed.
 - **Backup** — from the Config tab, **`ctrl+b`** opens a dialog that copies your entire
   `~/.claude` into a dated folder `claude-backup-YYYY-MM-DD_HH-MM-SS` under a configurable
   backup directory (default `~/Backup Claude Code`); locked/unreadable files are skipped
@@ -153,13 +192,15 @@ CCDashboard/
     scan.py                build_view_model(config_dir) -> config inventory (reuses ClaudeBench)
     conversations.py       index_conversations / launch_resume (indexing + cross-platform resume)
     search.py              parse_query / merge_ui_filters / rank / highlight (UI-agnostic)
+    memory.py              index_memories / search_memories (indexing + filtering, UI-agnostic)
     quiz.py                load_all_cards (multi-dir) / notes-dir config / SM-2 / gen_question + grade_answer (Claude)
     folder_picker.py       native OS folder picker (zenity/kdialog/yad) for choosing notes dirs
     backup.py              get_backup_dir / set_backup_dir / backup_claude -> dated ~/.claude copy
     tui/
-      app.py               CCDashboardApp — Header, pyfiglet banner, 3 tabs, Footer
+      app.py               CCDashboardApp — Header, pyfiglet banner, 4 tabs, Footer
       config_view.py       Config tab (search + DataTable)
       conversations_view.py  Conversations tab (filter row + search + DataTable + preview + resume)
+      memory_view.py       Memories tab (filter row + search + DataTable + reading pane)
       quiz_view.py         QuizMe tab (question + answer TextArea + Claude grading + Notes folders…)
       notes_config_screen.py  Notes-folders dialog (ModalScreen): add/remove dirs via the OS picker
       backup_screen.py     Backup dialog (ModalScreen) opened by Config's ctrl+b

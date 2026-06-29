@@ -26,6 +26,8 @@ CCDashboard/
                            ~/.claude/projects/**/*.jsonl (indexing + cross-platform resume).
     search.py              UI-agnostic search engine: parse_query / merge_ui_filters /
                            rank (relevance+recency) / highlight — no Textual.
+    memory.py              index_memories() / preview() / split_type_operator() over
+                           ~/.claude/projects/*/memory/*.md (UI-agnostic; stdlib + rich).
     quiz.py                load_all_cards() (split notes from configurable folder(s) into
                            SM-2 cards) / notes-dir config / review() + selection /
                            gen_question() + grade_answer() (Claude).
@@ -38,14 +40,17 @@ CCDashboard/
     tui/
       __init__.py
       app.py               CCDashboardApp (Textual App): Header, pyfiglet banner,
-                           TabbedContent[Config, Conversations, QuizMe], Footer; loads
-                           data in a background (@work thread) worker on mount.
+                           TabbedContent[Config, Conversations, Memories, QuizMe], Footer;
+                           loads data in a background (@work thread) worker on mount.
       config_view.py       ConfigView — search Input + DataTable of components;
                            row-select -> editor.open_in_editor(item abs_path).
       conversations_view.py  ConversationsView — project + date filter row, search Input,
                            DataTable, highlighted preview pane; ranks via search.py;
                            row-select -> launch_resume (per-OS: Win clipboard+keystroke /
                            Linux terminal / macOS osascript).
+      memory_view.py       MemoriesView — project + type + date dropdowns; debounced
+                           search; side-by-side DataTable (left) + reading-pane Static
+                           (right); Enter opens the .md in VS Code via editor.open_in_editor.
       quiz_view.py         QuizView — question Static + answer TextArea + Submit + Notes
                            folders… (ctrl+o); gen/grade in @work workers; graceful no-key
                            and no-notes panels.
@@ -67,9 +72,11 @@ CCDashboard/
 ```
 on_mount ──▶ @work(thread, exclusive): scan.build_view_model(config_dir)
           │                            conversations.index_conversations()
+          │                            memory.index_memories()
           │                            quiz.load_all_cards() + quiz.load_state()
           └▶ call_from_thread ──▶ ConfigView.load_items(vm)
                                   ConversationsView.load_conversations(convos)
+                                  MemoriesView.load_memories(memories)
                                   QuizView.load_quiz(cards, state)
 
 search   ──▶ Config tab:        client-side substring filter over name/id/kind/description
@@ -81,10 +88,18 @@ search   ──▶ Config tab:        client-side substring filter over name/id/
                                 + a visible project/date filter row, and fuzzy typo
                                 tolerance (stdlib difflib). The highlighted row drives
                                 search.highlight(...) into the preview pane.
+         ──▶ Memories tab:      Type/Project/Date dropdowns pre-filter the index ─▶
+                                split_type_operator(text) strips any inline `type:` token
+                                from the query ─▶ same search.parse_query /
+                                merge_ui_filters / rank pipeline (VERBATIM reuse —
+                                zero changes to search.py; see Engine Reuse below).
 
 Enter on a conversation row ──▶ ConversationsView._resume (@work thread)
                             ──▶ conversations.launch_resume(session_id, index)
                                 (per-OS terminal launch — see the contract below)
+
+Enter on a memory row ──▶ editor.open_in_editor(memory.file_path)
+                          (VS Code CLI, or OS default)
 
 QuizMe ──▶ load_quiz picks today's card ─▶ @work gen_question (Claude) ─▶ answer ─▶
            ctrl+s ─▶ @work grade_answer (Claude, structured) ─▶ apply_grade (SM-2)
@@ -171,6 +186,33 @@ nothing about Textual. The CONVERSATIONS view builds a `Query` and calls these:
   (metadata header + context windows around the best matches) and the table TITLE cell
   with matched terms styled in the cyan/teal theme (exact `bold #00e5ff`, fuzzy `#7ab8cc`).
 
+### `ccdashboard/memory.py` — `index_memories()` / `preview()` / `split_type_operator()`
+UI-agnostic; pure stdlib + `rich.text`, matching the `conversations.py` / `search.py` pattern.
+- `Memory` — frozen dataclass with display fields (`name`, `description`, `type`, `body`,
+  `project_name`, `project_slug`, `file_path`, `modified`) PLUS search fields that mirror
+  `Conversation` exactly: `title`, `title_lc`, `body_lc`, `project_lc`, `branch_lc`,
+  `last_at`, `last_date`, `session_id`. The naming is intentional — it lets `search.py`
+  rank and highlight `Memory` objects without modification (see Engine Reuse below).
+- `index_memories(projects_dir=None) -> list[Memory]` — globs
+  `~/.claude/projects/*/memory/*.md`, skips `MEMORY.md`, and returns records sorted
+  newest-mtime first. Frontmatter parsing handles two `type` shapes: top-level `type:` and
+  `type:` nested under `metadata:` (distinguished from `node_type:` by exact key match).
+  Slug→label conversion via `_project_label`: strips the `Path.home()`-derived prefix so
+  `…-smart-gift-card` becomes `MyGit-smart-gift-card`, not `card`. This preserves the full
+  relative path, disambiguating same-named repos under different parent directories (e.g. a
+  worktree under `temp-…`). Nothing machine-specific is hardcoded.
+- `preview(memory, query) -> rich.text.Text` — builds the reading-pane renderable (full
+  body + highlighted matches), analogous to `search.highlight`.
+- `split_type_operator(text) -> tuple[str | None, str]` — extracts an inline `type:` token
+  from the query string before it reaches `search.parse_query`; used by `MemoriesView` to
+  apply the memory-only Type facet without touching the shared engine.
+
+The TUI companion `ccdashboard/tui/memory_view.py` (`MemoriesView`) is a structural sibling
+of `ConversationsView`: project + type + date dropdowns, 180 ms-debounced search,
+side-by-side layout (`#mem-table` DataTable left, `#mem-preview` reading-pane `Static`
+right, CSS in `app.tcss`). `_ccd_`-prefixed methods/attrs per the project convention.
+Enter calls `editor.open_in_editor(memory.file_path)`.
+
 ### `ccdashboard/quiz.py`
 UI-agnostic, pure stdlib except a LAZY `anthropic` import inside the two Claude calls
 (so importing the module — and the TUI — never needs the SDK or network).
@@ -218,8 +260,8 @@ The TUI companion `ccdashboard/tui/backup_screen.py` (`BackupScreen`, a Textual
 
 ### `ccdashboard/tui/app.py` — `CCDashboardApp(App)` / `run(config_dir)`
 `CSS_PATH = "app.tcss"`. Composes Header (clock), a `pyfiglet` banner Static, a
-`TabbedContent` with the Config, Conversations, and QuizMe panes, and a Footer.
-Bindings: `q` quit, `ctrl+r` refresh, `1`/`2`/`3` switch tabs, `/` focus the active
+`TabbedContent` with the Config, Conversations, Memories, and QuizMe panes, and a Footer.
+Bindings: `q` quit, `ctrl+r` refresh, `1`/`2`/`3`/`4` switch tabs, `/` focus the active
 tab's search. On tab activation/load it calls `_ccd_active_view().focus_search()` so
 focus lands in the content (every view implements `focus_search()`). On mount it kicks
 off the background loader; `run(config_dir)` is the entry point used by `cc_dashboard.py`.
@@ -240,11 +282,20 @@ off the background loader; `run(config_dir)` is the entry point used by `cc_dash
 
 `scan.py` imports the sibling `claudebench` package (ClaudeBench's scanner) by adding
 `../ClaudeBench` to `sys.path`; ClaudeBench remains a fully independent CLI.
-`conversations.py`, `search.py`, and `quiz.py` are pure stdlib (quiz's `anthropic`
-import is lazy; `search.py` also uses `rich.text`) and each has a `__main__` offline
-smoke test (`python -m ccdashboard.conversations`, `python -m ccdashboard.quiz`). The
-engine modules are import-safe and headless-testable, which is how the TUI is
-smoke-tested (Textual's `run_test()` pilot).
+`conversations.py`, `search.py`, `memory.py`, and `quiz.py` are pure stdlib (quiz's
+`anthropic` import is lazy; `search.py` and `memory.py` also use `rich.text`) and each
+has a `__main__` offline smoke test. The engine modules are import-safe and
+headless-testable, which is how the TUI is smoke-tested (Textual's `run_test()` pilot).
+
+**`search.py` is reused verbatim for Memories — zero changes to the engine.** `Memory`
+exposes the exact field names (`title`, `title_lc`, `body_lc`, `project_lc`, `branch_lc`,
+`last_at`, `last_date`, `session_id`) that `search.parse_query` / `rank` /
+`highlight_title` already read, so the engine operates on `Memory` objects identically to
+`Conversation` objects. The memory-only **Type** facet is applied as a view-level
+pre-filter in `MemoriesView`, and `split_type_operator` strips any inline `type:` token
+before the text reaches the parser — so the shared engine never encounters a
+memory-specific concept. As a consequence, the existing Conversations search behavior is
+provably unchanged, and the search/conversations test suites stay green without modification.
 
 The repo now ships its first pytest suite under `tests/` (install
 `requirements-dev.txt`, then `python -m pytest tests`): unit coverage of `search.py`'s

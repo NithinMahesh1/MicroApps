@@ -1,10 +1,12 @@
 """
 The CCDashboard Textual app — a futuristic terminal console for ~/.claude.
 
-Three tabs over the shared, UI-agnostic engine:
+Four tabs over the shared, UI-agnostic engine:
   * Config        — searchable inventory of skills/agents/memory/rules/settings.
   * Conversations — full-text search of past Claude Code chats; Enter resumes one
                     in an elevated PowerShell (``claude --resume`` in its cwd).
+  * Memories      — search your per-project Claude auto-memories; Enter opens one
+                    in VS Code. Reuses the Conversations search engine verbatim.
   * QuizMe        — daily spaced-repetition quiz over your study notes; Claude
                     generates a question and grades your answer.
 
@@ -20,9 +22,10 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Footer, Header, Static, TabbedContent, TabPane
 
-from ccdashboard import conversations, quiz, scan
+from ccdashboard import conversations, memory, quiz, scan
 from ccdashboard.tui.config_view import ConfigView
 from ccdashboard.tui.conversations_view import ConversationsView
+from ccdashboard.tui.memory_view import MemoriesView
 from ccdashboard.tui.quiz_view import QuizView
 
 try:
@@ -41,7 +44,8 @@ class CCDashboardApp(App):
         Binding("ctrl+r", "refresh", "Refresh"),
         Binding("1", "show('config')", "Config"),
         Binding("2", "show('conversations')", "Conversations"),
-        Binding("3", "show('quizme')", "QuizMe"),
+        Binding("3", "show('memories')", "Memories"),
+        Binding("4", "show('quizme')", "QuizMe"),
         Binding("slash", "search", "Search"),
     ]
 
@@ -58,6 +62,8 @@ class CCDashboardApp(App):
                 yield ConfigView(id="config-view")
             with TabPane("◇ CONVERSATIONS", id="conversations"):
                 yield ConversationsView(id="conversations-view")
+            with TabPane("◇ MEMORIES", id="memories"):
+                yield MemoriesView(id="memory-view")
             with TabPane("◇ QUIZME", id="quizme"):
                 yield QuizView(id="quiz-view")
         yield Footer()
@@ -75,13 +81,15 @@ class CCDashboardApp(App):
         """
         vm = scan.build_view_model(self._ccd_config_dir)
         convos = conversations.index_conversations()
+        mems = memory.index_memories()
         cards = quiz.load_all_cards()
         state = quiz.load_state()
-        self.call_from_thread(self._populate, vm, convos, cards, state)
+        self.call_from_thread(self._populate, vm, convos, mems, cards, state)
 
-    def _populate(self, vm: dict, convos: list, cards: list, state) -> None:
+    def _populate(self, vm: dict, convos: list, mems: list, cards: list, state) -> None:
         self.query_one(ConfigView).load_items(vm)
         self.query_one(ConversationsView).load_conversations(convos)
+        self.query_one(MemoriesView).load_memories(mems)
         self.query_one(QuizView).load_quiz(cards, state)
         self._ccd_active_view().focus_search()
 
@@ -97,10 +105,12 @@ class CCDashboardApp(App):
         self._ccd_active_view().focus_search()
 
     def _ccd_active_view(self):
-        """Return the view widget in the active tab (Config/Conversations/Quiz)."""
+        """Return the view widget in the active tab (Config/Conversations/Memories/Quiz)."""
         active = self.query_one("#tabs", TabbedContent).active
         if active == "conversations":
             return self.query_one(ConversationsView)
+        if active == "memories":
+            return self.query_one(MemoriesView)
         if active == "quizme":
             return self.query_one(QuizView)
         return self.query_one(ConfigView)
