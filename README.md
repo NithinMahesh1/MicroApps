@@ -11,7 +11,7 @@ configures and runs any of them from one place — regardless of stack.
 | [**MeetingNotesOverlay**](MeetingNotesOverlay/) | .NET 10 / WinUI 3 | Always‑on‑top notes overlay that is **invisible to screen sharing** (Teams/Slack/Zoom/Meet) via `WDA_EXCLUDEFROMCAPTURE`. |
 | [**ClaudePanes**](ClaudePanes/) | Python CLI | Opens multi‑pane Claude Code terminal layouts from a TOML file (Windows Terminal / WezTerm / tmux / Zellij). |
 | [**ClaudeBench**](ClaudeBench/) | Python CLI | Measures the token footprint of your `~/.claude` config (skills/agents/memory/rules) — free static `count_tokens` plus optional empirical runs; CLI + Markdown report. |
-| [**CCDashboard**](CCDashboard/) | Python (Textual TUI) | "Jarvis" console for your `~/.claude`: searchable config (Enter opens the file in VS Code), relevance-ranked conversation search (operators, filters, fuzzy, highlighted preview) + resume, and a daily Claude‑graded **QuizMe**. |
+| [**CCDashboard**](CCDashboard/) | Python (Textual TUI) | "Jarvis" console for your `~/.claude`: searchable config (Enter opens the file in VS Code), relevance-ranked conversation search (operators, filters, fuzzy, highlighted preview) + resume, a **Memories** browser (search per‑project auto‑memories, open in VS Code), and **QuizMe** — Claude‑generated flash‑card decks from your notes with SM‑2 spaced repetition. |
 | [**TodoTUI**](TodoTUI/) | Python (Textual TUI) | A simple terminal to‑do manager with tabbed **Todo** / **Completed** views; tasks persist to `~/.local/share/todo-tui`. |
 
 ## Launcher
@@ -70,6 +70,6 @@ MeetingTracker/                Python calendar/Gmail TUI
 MeetingNotesOverlay/           .NET 10 WinUI 3 capture-proof overlay
 ClaudePanes/                   Python terminal-layout launcher
 ClaudeBench/                   Python ~/.claude token-footprint benchmarker (CLI + report)
-CCDashboard/                   Python Textual TUI for ~/.claude (config + conversations + QuizMe)
+CCDashboard/                   Python Textual TUI for ~/.claude (config + conversations + memories + QuizMe flash-cards)
 TodoTUI/                       Python Textual to-do manager (tabbed Todo/Completed)
 ```

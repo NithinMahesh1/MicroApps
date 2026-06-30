@@ -77,7 +77,7 @@
     {
       "id": "cc-dashboard",
       "name": "CC Dashboard",
-      "description": "Jarvis-style terminal (TUI) for your global Claude Code config (skills/agents/memory/rules/settings) plus full-text conversation search + elevated resume.",
+      "description": "Jarvis-style terminal (TUI) for your global Claude Code config (skills/agents/memory/rules/settings), full-text conversation search + elevated resume, a Memories browser, and QuizMe flash-card spaced-repetition.",
       "stack": "python",
       "icon": "🛰️",
       "cwd": "CCDashboard",
