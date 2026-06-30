@@ -66,11 +66,12 @@ CCDashboard/
                            search; side-by-side DataTable (left) + reading-pane Static
                            (right); Enter opens the .md in VS Code via editor.open_in_editor.
       quiz_view.py         QuizView — pre-generated card question + answer TextArea +
-                           Submit (ctrl+s) + Next card (ctrl+n, free practice) + build
-                           progress bar + Notes folders… (ctrl+o); grading in @work
-                           workers; graceful no-key and no-cards panels.
-                           CardHistoryModal (ModalScreen) — shows a card's full Attempt
-                           history (ctrl+h, Esc to close).
+                           an action row (Submit ctrl+s · Notes Folders… ctrl+o · Next
+                           card ctrl+n, free practice) + build progress bar; grading in
+                           @work workers; graceful no-key and no-cards panels.
+                           GradeResultModal (ModalScreen) — the graded answer shown as an
+                           overlay (Next card / Close). CardHistoryModal — a card's full
+                           Attempt history (ctrl+h, Esc to close).
       notes_config_screen.py  NotesConfigScreen (ModalScreen) — view/add/remove notes
                            folders via the OS picker (worker thread) or a typed path; Save
                            persists via quiz.save_notes_dirs.
@@ -126,11 +127,12 @@ Enter on a memory row ──▶ editor.open_in_editor(memory.file_path)
 
 QuizMe ──▶ load_quiz presents card.question (from pre-generated deck; no live generation)
            ─▶ user types answer ─▶ ctrl+s ─▶ @work grade_answer (Claude Opus, structured)
-           ─▶ apply_grade (SM-2 + Attempt history + streak + Stats) ─▶ save_state.
+           ─▶ apply_grade (SM-2 + Attempt history + streak + Stats) ─▶ save_state
+           ─▶ GradeResultModal overlay (Next card advances · Close stays).
            ctrl+n (Next card) ─▶ select_next_practice (free practice, unlimited).
            ctrl+h (History) ─▶ CardHistoryModal — card's full Attempt history.
            ctrl+b (Build deck) ─▶ @work flashcards.build_decks(force=False) ─▶ reload.
-           Notes folders… (ctrl+o) ─▶ NotesConfigScreen ─▶ folder_picker (@work) ─▶
+           Notes Folders… (ctrl+o) ─▶ NotesConfigScreen ─▶ folder_picker (@work) ─▶
            quiz.save_notes_dirs ─▶ reload cards + trigger build.
 ```
 

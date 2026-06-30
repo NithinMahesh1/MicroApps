@@ -144,8 +144,18 @@ DataTable > .datatable--odd-row {
     border: round #00e5ff;
 }
 
-#quiz-submit {
+/* Action button row — Submit + Notes Folders (+ Next card) laid out side by side */
+.quiz-actions {
+    height: auto;
     margin: 1 2;
+}
+
+.quiz-actions Button {
+    width: auto;
+}
+
+#quiz-submit {
+    margin: 0 1 0 0;
     background: #0e3340;
     color: #00e5ff;
     border: round #00e5ff;
@@ -155,6 +165,18 @@ DataTable > .datatable--odd-row {
 #quiz-submit:hover {
     background: #00e5ff;
     color: #05080d;
+}
+
+#quiz-notes {
+    margin: 0 1 0 0;
+    background: #0a1420;
+    color: #7ab8cc;
+    border: round #103040;
+}
+
+#quiz-notes:hover {
+    background: #0e3340;
+    color: #00e5ff;
 }
 
 .quiz-feedback {
@@ -192,7 +214,7 @@ DataTable > .datatable--odd-row {
 /* Next-card button — hidden until the current card is graded */
 #quiz-next {
     display: none;
-    margin: 0 2 0 2;
+    margin: 0 1 0 0;
     background: #0e3340;
     color: #19f0d4;
     border: round #19f0d4;
@@ -234,6 +256,58 @@ CardHistoryModal {
 }
 
 #history-close:hover {
+    background: #0e3340;
+    color: #00e5ff;
+}
+
+/* Grade-result modal — the graded answer shown as an overlay (like the history modal) */
+GradeResultModal {
+    align: center middle;
+    background: #05080d 75%;
+}
+
+#grade-dialog {
+    width: 82;
+    height: auto;
+    max-height: 24;
+    padding: 1 2;
+    background: #0a1420;
+    border: round #00e5ff;
+    overflow-y: auto;
+}
+
+#grade-content {
+    color: #cfeffd;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#grade-actions {
+    height: auto;
+}
+
+#grade-next {
+    width: auto;
+    margin: 0 1 0 0;
+    background: #0e3340;
+    color: #00e5ff;
+    border: round #00e5ff;
+    text-style: bold;
+}
+
+#grade-next:hover {
+    background: #00e5ff;
+    color: #05080d;
+}
+
+#grade-close {
+    width: auto;
+    background: #0a1420;
+    color: #7ab8cc;
+    border: round #103040;
+}
+
+#grade-close:hover {
     background: #0e3340;
     color: #00e5ff;
 }

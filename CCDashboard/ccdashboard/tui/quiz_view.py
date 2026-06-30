@@ -19,7 +19,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, ProgressBar, Static, TextArea
 
 from ccdashboard import quiz
-from ccdashboard.models import PASS_QUALITY, FlashCard, QuizState
+from ccdashboard.models import PASS_QUALITY, FlashCard, QuizGrade, QuizState
 
 # flashcards.py is delivered by a concurrent agent; guard the import so this
 # module is importable even before that module exists on disk.
@@ -82,6 +82,61 @@ class CardHistoryModal(ModalScreen):
 
 
 # --------------------------------------------------------------------------- #
+# GradeResultModal
+# --------------------------------------------------------------------------- #
+
+
+class GradeResultModal(ModalScreen[bool]):
+    """The graded answer shown as an overlay (like the Notes/History dialogs).
+
+    Dismisses ``True`` when the user chooses "Next card", else ``False``
+    (Close / Esc) so they stay on the just-graded card.
+    """
+
+    BINDINGS = [
+        Binding("escape", "close", "Close"),
+        Binding("ctrl+n", "next", "Next card"),
+    ]
+
+    def __init__(self, grade: QuizGrade, card_title: str) -> None:
+        super().__init__()
+        self._ccd_grade = grade
+        self._ccd_title = card_title
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="grade-dialog"):
+            yield Static(self._ccd_render(), id="grade-content")
+            with Horizontal(id="grade-actions"):
+                yield Button("Next card  (Ctrl+N)", id="grade-next", variant="primary")
+                yield Button("Close  (Esc)", id="grade-close")
+
+    def _ccd_render(self) -> str:
+        from rich.markup import escape
+
+        g = self._ccd_grade
+        passed = g.grade >= PASS_QUALITY
+        mark = "✓" if passed else "✗"
+        verdict = (g.verdict or ("correct" if passed else "incorrect")).upper()
+        colour = "#19f0d4" if passed else "#ff7a7a"
+        lines: list[str] = []
+        if self._ccd_title:
+            lines += [f"[b]{escape(self._ccd_title)}[/b]", ""]
+        lines.append(f"[{colour}]{mark}  {escape(verdict)}  ·  grade {g.grade}/5[/]")
+        if g.feedback:
+            lines += ["", escape(g.feedback)]
+        return "\n".join(lines)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "grade-next")
+
+    def action_close(self) -> None:
+        self.dismiss(False)
+
+    def action_next(self) -> None:
+        self.dismiss(True)
+
+
+# --------------------------------------------------------------------------- #
 # QuizView
 # --------------------------------------------------------------------------- #
 
@@ -99,7 +154,7 @@ class QuizView(Vertical):
         Binding("ctrl+n", "next_card", "Next card", show=True),
         Binding("ctrl+h", "show_history", "History", show=True),
         Binding("ctrl+b", "build_deck", "Build deck", show=True),
-        Binding("ctrl+o", "choose_notes", "Notes folders", show=True),
+        Binding("ctrl+o", "choose_notes", "Notes Folders", show=True),
     ]
 
     def __init__(self, **kwargs) -> None:
@@ -119,9 +174,10 @@ class QuizView(Vertical):
             yield ProgressBar(id="quiz-build-bar", total=100, show_eta=False)
         yield Static("", id="quiz-question", classes="quiz-question")
         yield TextArea("", id="quiz-answer", classes="quiz-answer")
-        yield Button("Submit  (Ctrl+S)", id="quiz-submit", variant="primary")
-        yield Button("Next card  (Ctrl+N)", id="quiz-next", variant="default")
-        yield Button("Notes folders…  (Ctrl+O)", id="quiz-notes")
+        with Horizontal(id="quiz-actions", classes="quiz-actions"):
+            yield Button("Submit  (Ctrl+S)", id="quiz-submit", variant="primary")
+            yield Button("Notes Folders…  (Ctrl+O)", id="quiz-notes")
+            yield Button("Next card  (Ctrl+N)", id="quiz-next", variant="default")
         yield Static("", id="quiz-feedback", classes="quiz-feedback")
 
     # ---- engine hand-off from app._populate ------------------------------ #
@@ -294,22 +350,23 @@ class QuizView(Vertical):
         self._ccd_state = new_state
         self._ccd_busy = False
         self._ccd_seen.add(card_id)
-
-        verdict = getattr(grade, "verdict", "") or (
-            "correct" if grade.grade >= PASS_QUALITY else "incorrect"
-        )
-        mark = "✓" if grade.grade >= PASS_QUALITY else "✗"
+        self._ccd_refresh_status()
+        self._ccd_set_display("#quiz-next", True)
+        # The graded result is shown in an overlay modal, not inline — clear the
+        # transient "Grading…" text behind it.
         try:
-            feedback = self.query_one("#quiz-feedback", Static)
-            feedback.remove_class("feedback-error")
-            feedback.update(
-                f"{mark}  [{verdict.upper()}]  grade {grade.grade}/5\n"
-                f"{getattr(grade, 'feedback', '')}"
-            )
-            self._ccd_refresh_status()
-            self._ccd_set_display("#quiz-next", True)
+            fb = self.query_one("#quiz-feedback", Static)
+            fb.remove_class("feedback-error")
+            fb.update("")
         except Exception:  # noqa: BLE001
             pass
+        title = self._ccd_card.title if self._ccd_card else ""
+        self.app.push_screen(GradeResultModal(grade, title), self._ccd_after_grade)
+
+    def _ccd_after_grade(self, go_next: bool | None) -> None:
+        """Grade modal closed — advance only if the user chose "Next card"."""
+        if go_next:
+            self._ccd_next_card()
 
     def _ccd_on_unavailable(self, _msg: str) -> None:
         self._ccd_busy = False

@@ -36,13 +36,14 @@ A futuristic **terminal (TUI)** console for your global Claude Code setup
   (editable in VS Code, never committed, never written into your notes folders). A
   **background build runs on every app launch** (incremental — unchanged notes are
   content-hashed and skipped), and cards already on disk are quizzable immediately.
-  Type a free-text answer, then **Claude Opus grades it** on the SM-2 0–5 scale.
+  Type a free-text answer, then **Claude Opus grades it** on the SM-2 0–5 scale and
+  shows the result in an **overlay modal** (with a **Next card** button to continue).
   **Free practice** — once the daily card is done, **Next card** (`ctrl+n`) keeps
   serving more, unlimited. A **history modal** (`ctrl+h`) shows every past attempt on
   the current card. The status line shows a **high-score summary** (streak · best
   streak · due · answered · accuracy · card count). Needs `ANTHROPIC_API_KEY` —
   Sonnet generates decks, Opus grades answers; shows a prompt until you set it.
-  **Choose notes folder(s) from inside the app** — **Notes folders…** (`ctrl+o`) opens
+  **Choose notes folder(s) from inside the app** — **Notes Folders…** (`ctrl+o`) opens
   a cross-platform OS picker (Windows: `FolderBrowserDialog`, macOS: `osascript choose
   folder`, Linux: `zenity`/`kdialog`/`yad`/`qarma`) and supports multiple directories.
 
@@ -64,7 +65,7 @@ UI-agnostic, so the UI can change without touching them.
   Set it persistently on Windows (user scope), then restart your terminal:
   `[Environment]::SetEnvironmentVariable('ANTHROPIC_API_KEY', 'sk-ant-...', 'User')`
 - **QuizMe notes folder(s):** by default QuizMe reads `*.md` from `~/Learning/Codebase`.
-  Point it anywhere from inside the app — **Notes folders…** (`ctrl+o`) opens a native
+  Point it anywhere from inside the app — **Notes Folders…** (`ctrl+o`) opens a native
   OS picker (Windows: PowerShell `FolderBrowserDialog`, macOS: `osascript choose
   folder`, Linux: `zenity`/`kdialog`/`yad`/`qarma`) and supports multiple directories
   — or set `CCDASHBOARD_NOTES_DIR` (os-path-separated). The in-app choice is saved to
