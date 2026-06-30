@@ -21,6 +21,36 @@ UI layer on top — so the UI can change without touching the engine.
 - [x] **Faster search (DONE)** — precomputed lowercased per-field search text on the frozen `Conversation` + 180 ms input debounce for the TUI (≈6.5× faster per query: ~34 ms → ~5 ms).
 - [x] **Ranked search + preview (DONE 2026-06-24)** — CONVERSATIONS search now ranks by **relevance blended with recency** (replacing pure newest-first), with query operators (`project:`/`dir:`, `branch:`, `after:`/`before:`, `"phrases"`), a project/date filter row, stdlib `difflib` fuzzy typo tolerance, and a highlighted **preview pane**. Engine extracted to `ccdashboard/search.py` (`parse_query`/`merge_ui_filters`/`rank`/`highlight`); first `tests/` suite (49 tests) + `requirements-dev.txt`/`pytest.ini`. Spec: `docs/superpowers/specs/2026-06-24-ccdash-conversation-search-design.md`.
 
+### ✅ QuizMe v2 — generated flash-card decks (DONE 2026-06-30)
+Turned QuizMe from "one live, throwaway question/day" into a real, persistent
+flash-card system over **all** your `.md` notes. Designed + built in the 2026-06-30 chat
+via 4 parallel agents over a shared `ccdashboard/models.py` contract. **194 tests green.**
+
+**Generation & storage**
+- [x] Generate true Q&A flash cards from **whole notes** (`flashcards.gen_cards`, Claude **Sonnet**, capped — not raw `##` slices), so cards cover substantive content. Fixes the "intro-only `(whole file)` card" that made Claude refuse ("note content is incomplete").
+- [x] Persist decks as **Markdown** in app data: `~/.claude/ccdashboard/flashcards/` (outside the repo, never writes into your notes folders; editable in VS Code).
+- [x] **Incremental** (re)generation: cache by note content-hash (`deck_is_current`), regenerate only changed notes; manual force-rebuild via `ctrl+b`.
+- [x] **Concept-first** prompt for code-implementation guides: tests transferable concepts, allows general tech names (DI, Swagger, EF Core), strips repo-private class names / file paths.
+
+**Quiz flow & scoring**
+- [x] **Free practice** (`quiz.select_next_practice`, `ctrl+n`): a "Next card" action keeps serving cards beyond the daily one (most-due → new → upcoming), even after the daily set is done.
+- [x] Kept **SM-2 scheduling + daily streak** intact; extra practice advances SM-2 + totals without corrupting the streak.
+- [x] **High-score stats** (`Stats` record): status line shows `streak N (best M) · X due · Y answered · Z% accuracy · N cards`.
+
+**Per-card history**
+- [x] Each attempt extended from `(date, grade)` to an `Attempt` `{date, question, answer, grade, verdict, feedback}`.
+- [x] **Card-history viewer** (`CardHistoryModal`, `ctrl+h`) shows past Q&A + grades for a card to track improvement.
+
+**Notes folders & picker**
+- [x] Multiple directories supported (engine + UI) — accumulates across all of them.
+- [x] **Fixed the native folder picker**: added **Windows** (PowerShell `FolderBrowserDialog`) + **macOS** (`osascript`) backends; kept Linux (zenity/kdialog/yad/qarma). Platform-ordered, capability-based discovery. (Was Linux-only → "Add folder…" was dead on Windows.)
+- [x] Hardened typed **"Add path"** (strips surrounding quotes/whitespace).
+
+**Tests / docs**
+- [x] 194 tests: new `tests/test_flashcards.py` (40), `tests/test_quiz.py` (34), `tests/test_folder_picker.py` (12) + updated `test_quiz_config.py`; engine + app integration smokes. README / ARCHITECTURE / PLAN updated.
+
+_Decisions (2026-06-30 chat):_ bulk **generation = Sonnet** (`claude-sonnet-4-6`), **grading = Opus** (`claude-opus-4-8`); **trigger = background build on app launch** with a progress bar + content-hash incremental (cards already on disk are quizzable immediately), plus manual `ctrl+b` rebuild. New engine modules: `ccdashboard/models.py` (shared records) + `ccdashboard/flashcards.py` (deck gen + storage).
+
 ### Prereqs / open
 - [ ] Set `ANTHROPIC_API_KEY` (the paid key), then restart the terminal — activates the **built** QuizMe (Claude question-gen + grading) **and** flips ClaudeBench from placeholder zeros to real token counts. Until set, QuizMe shows a "set the key" prompt.
 

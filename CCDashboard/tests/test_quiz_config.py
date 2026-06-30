@@ -36,11 +36,6 @@ def _workspace():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def _write_md(d: Path, name: str, body: str) -> None:
-    d.mkdir(parents=True, exist_ok=True)
-    (d / name).write_text(body, encoding="utf-8")
-
-
 # ---- notes-dir resolution -------------------------------------------------- #
 
 def test_default_when_no_config_or_env() -> None:
@@ -83,25 +78,6 @@ def test_expand_dir_user_and_env() -> None:
         assert quiz.expand_dir("~/notes") == Path.home() / "notes"
     finally:
         os.environ.pop("CCD_TEST_VAR", None)
-
-
-# ---- multi-directory card loading ------------------------------------------ #
-
-def test_load_all_cards_merges_dirs() -> None:
-    with _workspace() as tmp:
-        d1, d2 = tmp / "n1", tmp / "n2"
-        _write_md(d1, "a.md", "## Topic A\n" + "x" * 60)
-        _write_md(d2, "b.md", "## Topic B\n" + "y" * 60)
-        headings = sorted(c.heading for c in quiz.load_all_cards([d1, d2]))
-        assert headings == ["Topic A", "Topic B"], headings
-
-
-def test_load_all_cards_skips_missing_dir() -> None:
-    with _workspace() as tmp:
-        d1 = tmp / "n1"
-        _write_md(d1, "a.md", "## Only\n" + "x" * 60)
-        cards = quiz.load_all_cards([d1, tmp / "does-not-exist"])
-        assert [c.heading for c in cards] == ["Only"]
 
 
 # ---- native folder picker -------------------------------------------------- #

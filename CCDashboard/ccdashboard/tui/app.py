@@ -7,8 +7,11 @@ Four tabs over the shared, UI-agnostic engine:
                     in an elevated PowerShell (``claude --resume`` in its cwd).
   * Memories      — search your per-project Claude auto-memories; Enter opens one
                     in VS Code. Reuses the Conversations search engine verbatim.
-  * QuizMe        — daily spaced-repetition quiz over your study notes; Claude
-                    generates a question and grades your answer.
+  * QuizMe (v2)   — spaced-repetition quiz over pre-generated flash-card decks;
+                    a background build runs on every app open (incremental, cheap when
+                    up-to-date); cards already on disk are quizzable immediately;
+                    free practice continues after the daily card; Claude grades answers;
+                    high-score stats + per-card attempt history.
 
 Instance attributes are ``_ccd_*`` prefixed to avoid colliding with Textual's
 internal ``App`` attributes.
@@ -28,9 +31,16 @@ from ccdashboard.tui.conversations_view import ConversationsView
 from ccdashboard.tui.memory_view import MemoriesView
 from ccdashboard.tui.quiz_view import QuizView
 
+# flashcards.py is delivered by a concurrent agent; guard the import so the app
+# is importable and testable even before that module exists on disk.
+try:
+    from ccdashboard import flashcards as _flashcards
+except ImportError:  # pragma: no cover
+    _flashcards = None  # type: ignore[assignment]
+
 try:
     import pyfiglet
-except ImportError:  # pragma: no cover - banner is optional
+except ImportError:  # pragma: no cover — banner is optional
     pyfiglet = None
 
 
@@ -75,23 +85,69 @@ class CCDashboardApp(App):
     def _load(self) -> None:
         """Index config + conversations + quiz cards off the UI thread, then populate.
 
-        ``quiz.load_cards`` / ``quiz.load_state`` are pure stdlib + filesystem
-        reads (no network, no Claude call), so they don't regress startup. The
-        only Claude work happens later, from inside QuizView's own worker.
+        flashcards.load_decks() is a pure filesystem read (no network, no Claude call)
+        so it never regresses startup time. Background deck generation starts separately
+        from _ccd_build_decks() after _populate() completes and QuizView is ready.
         """
         vm = scan.build_view_model(self._ccd_config_dir)
         convos = conversations.index_conversations()
         mems = memory.index_memories()
-        cards = quiz.load_all_cards()
+        # v2: cards come from pre-generated decks, not live extraction.
+        # _flashcards may be None if flashcards.py hasn't landed yet; safe fallback = [].
+        cards = _flashcards.load_decks() if _flashcards is not None else []
         state = quiz.load_state()
         self.call_from_thread(self._populate, vm, convos, mems, cards, state)
 
-    def _populate(self, vm: dict, convos: list, mems: list, cards: list, state) -> None:
+    def _populate(
+        self,
+        vm: dict,
+        convos: list,
+        mems: list,
+        cards: list,
+        state,
+    ) -> None:
         self.query_one(ConfigView).load_items(vm)
         self.query_one(ConversationsView).load_conversations(convos)
         self.query_one(MemoriesView).load_memories(mems)
         self.query_one(QuizView).load_quiz(cards, state)
         self._ccd_active_view().focus_search()
+        # Start background deck generation now that QuizView is initialised and
+        # can receive progress callbacks via set_build_progress / on_build_done.
+        self._ccd_build_decks()
+
+    @work(thread=True, exclusive=False)
+    def _ccd_build_decks(self) -> None:
+        """Background incremental deck build that runs on every app open.
+
+        Skipped silently when ANTHROPIC_API_KEY is unset or the SDK is missing.
+        Progress marshals to QuizView.set_build_progress; completion to on_build_done.
+        """
+        if _flashcards is None or not _flashcards.is_available():
+            return
+
+        def _cb(done: int, total: int, source: str) -> None:
+            try:
+                self.call_from_thread(
+                    self.query_one(QuizView).set_build_progress, done, total, source
+                )
+            except Exception:  # noqa: BLE001 — QuizView may not be mounted yet
+                pass
+
+        try:
+            result = _flashcards.build_decks(quiz.load_notes_dirs(), progress_cb=_cb)
+        except Exception as exc:  # noqa: BLE001
+            self.call_from_thread(
+                self.notify,
+                f"Deck build error: {exc}",
+                severity="error",
+                timeout=8,
+            )
+            return
+
+        try:
+            self.call_from_thread(self.query_one(QuizView).on_build_done, result)
+        except Exception:  # noqa: BLE001
+            pass
 
     def action_show(self, tab: str) -> None:
         self.query_one("#tabs", TabbedContent).active = tab
@@ -115,8 +171,10 @@ class CCDashboardApp(App):
             return self.query_one(QuizView)
         return self.query_one(ConfigView)
 
-    def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
-        # Landing on a tab should drop focus into its content, not the tab bar.
+    def on_tabbed_content_tab_activated(
+        self, event: TabbedContent.TabActivated  # noqa: ARG002
+    ) -> None:
+        # Landing on a tab drops focus into its content, not the tab bar.
         self._ccd_active_view().focus_search()
 
 

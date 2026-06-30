@@ -169,6 +169,75 @@ DataTable > .datatable--odd-row {
     color: #ff7a7a;
 }
 
+/* QuizMe v2 additions ------------------------------------------------------- */
+
+/* Build-progress row — hidden by default; shown while flashcards.build_decks runs */
+.quiz-build-row {
+    height: 3;
+    margin: 0 2;
+    display: none;
+}
+
+.quiz-build-label {
+    width: 1fr;
+    color: #7ab8cc;
+    content-align: left middle;
+    padding: 0 1 0 0;
+}
+
+#quiz-build-bar {
+    width: 1fr;
+}
+
+/* Next-card button — hidden until the current card is graded */
+#quiz-next {
+    display: none;
+    margin: 0 2 0 2;
+    background: #0e3340;
+    color: #19f0d4;
+    border: round #19f0d4;
+}
+
+#quiz-next:hover {
+    background: #19f0d4;
+    color: #05080d;
+}
+
+/* Card-history modal */
+CardHistoryModal {
+    align: center middle;
+    background: #05080d 75%;
+}
+
+#history-dialog {
+    width: 82;
+    height: auto;
+    max-height: 30;
+    padding: 1 2;
+    background: #0a1420;
+    border: round #00e5ff;
+    overflow-y: auto;
+}
+
+#history-content {
+    color: #cfeffd;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#history-close {
+    width: auto;
+    margin: 1 0 0 0;
+    background: #0a1420;
+    color: #7ab8cc;
+    border: round #103040;
+}
+
+#history-close:hover {
+    background: #0e3340;
+    color: #00e5ff;
+}
+
 /* BACKUP modal — dated snapshot of ~/.claude (Ctrl+B from the Config tab).
    Placed last so the `BackupScreen` type selector wins the source-order tie
    against the top-of-file `Screen` rule and the dialog floats over a dim wash. */

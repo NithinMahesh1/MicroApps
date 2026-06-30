@@ -69,7 +69,7 @@ class NotesConfigScreen(ModalScreen[bool]):
         if not folder_picker.available():
             browse = self.query_one("#notes-browse", Button)
             browse.disabled = True
-            browse.tooltip = "Install zenity or kdialog for a native picker"
+            browse.tooltip = "No native folder picker available — type or paste a path below instead."
         self._ccd_rebuild()
 
     # ---- list rendering ------------------------------------------------- #
@@ -121,6 +121,10 @@ class NotesConfigScreen(ModalScreen[bool]):
     def _ccd_add_typed(self) -> None:
         inp = self.query_one("#notes-path", Input)
         raw = inp.value.strip()
+        # Strip surrounding single or double quotes so that a path pasted from
+        # Windows Explorer (e.g. "C:\Users\…\Notes") resolves correctly.
+        if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in ('"', "'"):
+            raw = raw[1:-1].strip()
         if raw:
             self._ccd_add([quiz.expand_dir(raw)])
             inp.value = ""
