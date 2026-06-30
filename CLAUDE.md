@@ -58,3 +58,14 @@ path from your machine.
 Every new app/folder must be registered in `apps.json` in the same change — see
 the **add-app-to-launcher** skill. Per-app folders are PascalCase (`TodoTUI`,
 `CCDashboard`); the app `id` is kebab-case.
+
+## Keep docs current when changing an app
+
+Changing an existing app's user-visible surface (behavior, UI, hotkeys, CLI
+flags/commands, prerequisites, dependencies, or data/storage locations) is not
+done until its docs match — **in the same change**. Update the app's own
+`README.md` (+ `ARCHITECTURE.md` / `PLAN.md` when present) AND the repo-root
+`README.md` (the app-table row + the file-tree line) AND the app's `apps.json`
+`description` blurb — see the **keep-docs-current** skill. Verify by grepping the
+root `README.md` + `apps.json` for the app name/id and confirming they still
+match reality.
